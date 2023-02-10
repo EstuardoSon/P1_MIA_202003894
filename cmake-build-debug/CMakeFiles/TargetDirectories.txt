@@ -1,0 +1,3 @@
+/home/estuardo/CLionProjects/P1_MIA_202003894/cmake-build-debug/CMakeFiles/P1_MIA_202003894.dir
+/home/estuardo/CLionProjects/P1_MIA_202003894/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/estuardo/CLionProjects/P1_MIA_202003894/cmake-build-debug/CMakeFiles/rebuild_cache.dir
