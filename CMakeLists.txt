@@ -3,4 +3,4 @@ project(P1_MIA_202003894)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(P1_MIA_202003894 main.cpp)
+add_executable(P1_MIA_202003894 main.cpp Analizador/Analizador.cpp Analizador/Analizador.h "Estructuras y Objetos/Disco.cpp" "Estructuras y Objetos/Disco.h" "Estructuras y Objetos/Estructura.h")
