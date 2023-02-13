@@ -14,25 +14,6 @@ int main() {
     string comando = "";
     string exit = "exit";
 
-    string comprobar = "?.*";
-    string sRegex = "";
-    for(int i = 0; i < comprobar.size(); i++){
-        if(comprobar[i] != '*' && comprobar[i] != '?' && comprobar[i] != '.'){
-            sRegex += comprobar[i];
-        }else if(comprobar[i] == '*'){
-            sRegex += "(.)*";
-        }else if(comprobar[i] == '.'){
-            sRegex += "\\.";
-        }else if(comprobar[i] == '?'){
-            sRegex += "(.)";
-        }
-    }
-
-    string frase = "";
-    regex reg (sRegex);
-    if(regex_match(frase, reg)){
-        cout<<"match";
-    }
     while (true){
         fflush(stdin);
         char comandoC [1024];

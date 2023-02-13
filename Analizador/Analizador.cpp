@@ -4,6 +4,7 @@
 
 #include "Analizador.h"
 #include "../Estructuras y Objetos/Disco.h"
+#include "../Estructuras y Objetos/Particion.h"
 #include <regex>
 #include <iostream>
 #include <stdio.h>
@@ -230,6 +231,105 @@ void Analizador::analizar() {
         disco->mkdisk();
     }
 
+        //Comando Rmdisk
+    else if (tipoInst == 2) {
+        this->cadena = this->trim(this->cadena.erase(0, 6));
+
+        string path_param = ">path=";
+        Disco *disco = new Disco();
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatosPath(disco->path,disco->nombre,path_param.length());
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+
+        disco->rmdisk();
+    }
+
+        //Comando Fdisk
+    else if(tipoInst == 3){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        string s_param = ">size=";
+        string u_param = ">unit=";
+        string path_param = ">path=";
+        string t_param = ">type=";
+        string f_param = ">fit=";
+        string delete_param = ">delete=";
+        string name_param = ">name=";
+        string add_param = ">add=";
+
+        Particion *particion = new Particion();
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro S
+            else if (strncmp(this->toLower(this->cadena).c_str(),s_param.c_str(),s_param.length())==0){
+                this->obtenerDatoParamN(particion->s, s_param.length());
+            }
+
+                //Reconocer el parmatro U
+            else if (strncmp(this->toLower(this->cadena).c_str(),u_param.c_str(),u_param.length())==0){
+                this->obtenerDatoParamS(particion->u, u_param.length());
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatosPath(particion->path, particion->nombre_disco,path_param.length());
+            }
+
+                //Reconocer el parmatro T
+            else if (strncmp(this->toLower(this->cadena).c_str(),t_param.c_str(),t_param.length())==0){
+                this->obtenerDatoParamS(particion->t, t_param.length());
+            }
+
+                //Reconocer el parmatro F
+            else if (strncmp(this->toLower(this->cadena).c_str(),f_param.c_str(),f_param.length())==0){
+                this->obtenerDatoParamS(particion->f, f_param.length());
+            }
+
+                //Reconocer el parmatro DELETE
+            else if (strncmp(this->toLower(this->cadena).c_str(),delete_param.c_str(),delete_param.length())==0){
+                this->obtenerDatoParamS(particion->delete_, delete_param.length());
+            }
+
+                //Reconocer el parmatro NAME
+            else if (strncmp(this->toLower(this->cadena).c_str(),name_param.c_str(),name_param.length())==0){
+                this->obtenerDatoParamC(particion->name, name_param.length());
+            }
+
+                //Reconocer el parametro ADD
+            else if (strncmp(this->toLower(this->cadena).c_str(),add_param.c_str(),add_param.length())==0){
+                this->obtenerDatoParamN(particion->add, add_param.length());
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+
+        particion->fdisk();
+    }
+
         //Comando Exec
     else if (tipoInst == 28) {
         this->cadena = this->trim(this->cadena.erase(0, 4));
@@ -266,7 +366,7 @@ void Analizador::analizar() {
                     string comandoS = comando;
                     comandoS = this->trim(comandoS);
                     if (comandoS.length() != 0) {
-                        Analizador *analizador = new Analizador(comandoS, this->listaMount, this->usuario);
+                        Analizador *analizador = new Analizador(comandoS);
                         analizador->analizar();
                     }
                 }
@@ -277,53 +377,6 @@ void Analizador::analizar() {
                 cout << endl;
             }
         }
-    }
-
-        //Comando Rep
-    else if(tipoInst == 29){
-        this->cadena = this->trim(this->cadena.erase(0, 3));
-
-        string name_param = ">name=";
-        string path_param = ">path=";
-        string id_param = ">id=";
-        string ruta_param = ">ruta=";
-
-        Reporte * reporte = new Reporte(this->listaMount);
-
-        while(this->cadena.length() > 0) {
-            if (this->verificarComentario(this->cadena)){
-                break;
-            }
-
-                //Reconocer el parametro Name
-            else if (strncmp(this->toLower(this->cadena).c_str(), name_param.c_str(), name_param.length()) == 0) {
-                this->obtenerDatoParamS(reporte->name, name_param.length());
-            }
-
-                //Reconocer el parametro Path
-            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
-                this->obtenerDatosPath(reporte->fichero_p, reporte->archivo_p, path_param.length());
-            }
-
-                //Reconocer el parametro Id
-            else if (strncmp(this->toLower(this->cadena).c_str(), id_param.c_str(), id_param.length()) == 0) {
-                this->obtenerDatoParamC(reporte->id, id_param.length());
-            }
-
-                //Reconocer el parametro Ruta
-            else if (strncmp(this->toLower(this->cadena).c_str(), ruta_param.c_str(), ruta_param.length()) == 0) {
-                this->obtenerDatosPath(reporte->fichero_r, reporte->archivo_r, ruta_param.length());
-            }
-
-                //No se pudo reconocer el tipo de parametro
-            else {
-                cout << "Ingreso un parametro no reconocido" << endl;
-                cout << endl;
-                return;
-            }
-        }
-
-        reporte->generarReporte();
     }
 
         //No se reconoce un comando
