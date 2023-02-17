@@ -5,6 +5,7 @@
 #include "Analizador.h"
 #include "../Estructuras y Objetos/Disco.h"
 #include "../Estructuras y Objetos/Particion.h"
+#include "../Estructuras y Objetos/Reporte.h"
 #include <regex>
 #include <iostream>
 #include <stdio.h>
@@ -14,7 +15,7 @@
 
 using namespace std;
 
-Analizador::Analizador(std::string cadena) {
+Analizador::Analizador(std::string cadena, ListaMount *listamount) {
     this->cadena = this->trim(cadena);
 }
 
@@ -377,6 +378,53 @@ void Analizador::analizar() {
                 cout << endl;
             }
         }
+    }
+
+        //Comando Rep
+    else if(tipoInst == 29){
+        this->cadena = this->trim(this->cadena.erase(0, 3));
+
+        string name_param = ">name=";
+        string path_param = ">path=";
+        string id_param = ">id=";
+        string ruta_param = ">ruta=";
+
+        Reporte * reporte = new Reporte(this->listaMount);
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro Name
+            else if (strncmp(this->toLower(this->cadena).c_str(), name_param.c_str(), name_param.length()) == 0) {
+                this->obtenerDatoParamS(reporte->name, name_param.length());
+            }
+
+                //Reconocer el parametro Path
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatosPath(reporte->fichero_p, reporte->archivo_p, path_param.length());
+            }
+
+                //Reconocer el parametro Id
+            else if (strncmp(this->toLower(this->cadena).c_str(), id_param.c_str(), id_param.length()) == 0) {
+                this->obtenerDatoParamC(reporte->id, id_param.length());
+            }
+
+                //Reconocer el parametro Ruta
+            else if (strncmp(this->toLower(this->cadena).c_str(), ruta_param.c_str(), ruta_param.length()) == 0) {
+                this->obtenerDatosPath(reporte->fichero_r, reporte->archivo_r, ruta_param.length());
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+
+        reporte->generarReporte();
     }
 
         //No se reconoce un comando

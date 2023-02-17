@@ -41,9 +41,9 @@ int Particion::verificarTipoP() {
 
 //Devuelve un numero deacuerdo al tipo de ajuste
 int Particion::verificarAjusteP() {
-    if (this->f == "bestfit"){ return 1; }
-    else if (this->f == "firstfit"){ return 2; }
-    else if (this->f == "worstfit" || this->f == ""){ return 3; }
+    if (this->f == "bf"){ return 1; }
+    else if (this->f == "ff"){ return 2; }
+    else if (this->f == "wf" || this->f == ""){ return 3; }
     return -1;
 }
 

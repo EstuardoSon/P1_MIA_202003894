@@ -7,12 +7,14 @@
 
 #include <string>
 #include "../Estructuras y Objetos/Estructura.h"
+#include "../Estructuras y Objetos/ListaMount.h"
 
 using namespace std;
 
 class Analizador {
 public:
-    Analizador(string cadena);
+    Analizador(string cadena, ListaMount *listaMount);
+    ListaMount * listaMount;
     string cadena;
 
     void analizar();
