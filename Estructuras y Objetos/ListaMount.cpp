@@ -409,3 +409,339 @@ void ListaMount::imprimirLista() {
     }
     cout << endl;
 }
+
+//EXT2 y EXT3
+void ListaMount::ext(int type, int sistemaArchivo, NodoMount * nodo) {
+    MBR mbr;
+    FILE * archivo = fopen((nodo->fichero+"/"+nodo->nombre_disco).c_str(), "rb+");
+    if(archivo != NULL) {
+        fseek(archivo, 0, SEEK_SET);
+        fread(&mbr, sizeof(MBR), 1, archivo);
+
+        SuperBloque sb;
+        TablaInodo ti;
+        BloqueCarpeta bc;
+        Journaling journal;
+
+        sb.s_mtime = time(nullptr);
+        sb.s_umtime = 0;
+        sb.s_mnt_count = 1;
+        sb.s_magic = 0xEF53;
+
+        //Formatear particion Primaria
+        if (nodo->part_type == 'P') {
+            int p = -1;
+            for (int i = 0; i < 4; i++) {
+                if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0 &&
+                    mbr.mbr_partition_[i].part_status != '0' && mbr.mbr_partition_[i].part_type == 'P') {
+                    p = i;
+                    break;
+                }
+            }
+
+            if (p != -1 && p != 4) {
+                //Llenar de \0
+                if (type == 2) {
+                    fseek(archivo, mbr.mbr_partition_[p].part_start, SEEK_SET);
+                    char vacio = '\0';
+                    for (int i = 0; i < mbr.mbr_partition_[p].part_s; i++) { fwrite(&vacio, sizeof(char), 1, archivo); }
+                }
+
+                //Calcular el valor de N y Numero de Estructuras
+                double n;
+                if (sistemaArchivo == 1) {
+                    n = (mbr.mbr_partition_[p].part_s - sizeof(SuperBloque)) / (4 + (sizeof(TablaInodo)) + (3 * sizeof(BloqueArchivo)));
+                    sb.s_filesystem_type = 2;
+                } else {
+                    n = (mbr.mbr_partition_[p].part_s - sizeof(SuperBloque)) /
+                        (4 + (sizeof(Journaling)) + (sizeof(TablaInodo)) + (3 * sizeof(BloqueArchivo)));
+                    sb.s_filesystem_type = 3;
+                }
+
+                int num_estructura = floor(n);
+                int bloques = 3 * num_estructura;
+
+                //Inicializar SuperBloque
+                sb.s_inodes_count = num_estructura;
+                sb.s_blocks_count = bloques;
+                sb.s_free_inodes_count = num_estructura - 2;
+                sb.s_free_blocks_count = bloques - 2;
+                sb.s_inode_size = sizeof(TablaInodo);
+                sb.s_block_size = sizeof(BloqueArchivo);
+
+                if (sistemaArchivo == 1) { sb.s_bm_inode_start = mbr.mbr_partition_[p].part_start + sizeof(SuperBloque); }
+                else {
+                    sb.s_bm_inode_start = mbr.mbr_partition_[p].part_start + sizeof(SuperBloque) + (num_estructura * sizeof(Journaling));
+                }
+
+                sb.s_first_ino = 2;
+                sb.s_first_blo = 2;
+                sb.s_bm_block_start = sb.s_bm_inode_start + num_estructura;
+                sb.s_inode_start = sb.s_bm_block_start + bloques;
+                sb.s_block_start = sb.s_inode_start + (num_estructura * sizeof(TablaInodo));
+
+                //Inicializar Inodo Raiz
+                ti.i_uid = 1;
+                ti.i_gid = 1;
+                ti.i_atime = time(nullptr);
+                ti.i_ctime = time(nullptr);
+                ti.i_mtime = time(nullptr);
+                ti.i_perm = 664;
+                ti.i_block[0] = sb.s_block_start;
+                for (int i = 1; i < 15; i++) { ti.i_block[i] = -1; }
+                ti.i_type = '0';
+                ti.i_s = 0;
+
+                fseek(archivo, sb.s_inode_start, SEEK_SET);
+                fwrite(&ti, sizeof(TablaInodo), 1, archivo);
+
+                strcpy(bc.b_content[0].b_name, ".");
+                bc.b_content[0].b_inodo = sb.s_inode_start;
+                strcpy(bc.b_content[1].b_name, "..");
+                bc.b_content[1].b_inodo = sb.s_inode_start;
+                strcpy(bc.b_content[2].b_name, "users.txt");
+                bc.b_content[2].b_inodo = sb.s_inode_start + sizeof(TablaInodo);
+                strcpy(bc.b_content[3].b_name, "");
+                bc.b_content[3].b_inodo = -1;
+                fseek(archivo, sb.s_block_start, SEEK_SET);
+                fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                //Generar Inodo y archivo Users.txt
+                TablaInodo tiUsers;
+                BloqueArchivo baUsers;
+
+                tiUsers.i_uid = 1;
+                tiUsers.i_gid = 1;
+                tiUsers.i_atime = time(nullptr);
+                tiUsers.i_ctime = time(nullptr);
+                tiUsers.i_mtime = time(nullptr);
+                tiUsers.i_perm = 700;
+                tiUsers.i_block[0] = sb.s_block_start + sizeof(BloqueCarpeta);
+                for (int i = 1; i < 15; i++) { tiUsers.i_block[i] = -1; }
+                string s = "1,G,root\n1,U,root,root,123\n";
+                tiUsers.i_s = s.size();
+                tiUsers.i_type = '1';
+
+                fseek(archivo, sb.s_inode_start + sizeof(TablaInodo), SEEK_SET);
+                fwrite(&tiUsers, sizeof(TablaInodo), 1, archivo);
+
+                memset(baUsers.b_content, '\0', sizeof(baUsers.b_content));
+                strcpy(baUsers.b_content, s.c_str());
+                fseek(archivo, sb.s_block_start + sizeof(BloqueCarpeta), SEEK_SET);
+                fwrite(&baUsers, sizeof(BloqueArchivo), 1, archivo);
+
+                //Inicializacion de Journaling para EXT3
+                if (sistemaArchivo == 2) {
+                    journal.sig = -1;
+                    journal.tipo = '0';
+                    journal.size = 0;
+                    journal.fecha = time(nullptr);
+                    strcpy(journal.tipo_operacion, "mkfs");
+                    journal.start = mbr.mbr_partition_[p].part_start + sizeof(SuperBloque);
+                }
+
+                mbr.mbr_partition_[p].part_status = '2';
+
+                //Actualizacion del MBR y escritura del superbloque en disco
+                fseek(archivo, 0, SEEK_SET);
+                fwrite(&mbr, sizeof(MBR), 1, archivo);
+                fseek(archivo, mbr.mbr_partition_[p].part_start, SEEK_SET);
+                fwrite(&sb, sizeof(SuperBloque), 1, archivo);
+
+                //Escritura de los BITMAP
+                char ch0 = '0';
+                char ch1 = '1';
+                fseek(archivo, sb.s_bm_inode_start, SEEK_SET);
+                for (int i = 0; i < num_estructura; i++) { fwrite(&ch0, sizeof(char), 1, archivo); }
+                fseek(archivo, sb.s_bm_inode_start, SEEK_SET);
+                fwrite(&ch1, sizeof(char), 1, archivo);
+                fwrite(&ch1, sizeof(char), 1, archivo);
+
+                fseek(archivo, sb.s_bm_block_start, SEEK_SET);
+                for (int i = 0; i < bloques; i++) { fwrite(&ch0, sizeof(char), 1, archivo); }
+                fseek(archivo, sb.s_bm_block_start, SEEK_SET);
+                fwrite(&ch1, sizeof(char), 1, archivo);
+                fwrite(&ch1, sizeof(char), 1, archivo);
+
+                if (sistemaArchivo == 2) {
+                    fseek(archivo, mbr.mbr_partition_[p].part_start + sizeof(SuperBloque), SEEK_SET);
+                    fwrite(&journal, sizeof(Journaling), 1, archivo);
+                }
+
+                string formato = "EXT2";
+                if (sistemaArchivo == 2) {
+                    formato = "EXT3";
+                }
+                cout << "La particion se formateo exitosamente " << formato << endl << endl;
+            } else {
+                this->eliminar(nodo->idCompleto);
+                cout << "No fue posible encontrar la Particion en el Disco... " << endl;
+                cout << "Se demontara la Particion " << endl << endl;
+            }
+        }
+            //Formatear Particion Logica
+        else if (nodo->part_type == 'E') {
+            EBR ebr;
+            fseek(archivo, nodo->part_start, SEEK_SET);
+            fread(&ebr, sizeof(EBR), 1, archivo);
+
+            if (strncmp(nodo->nombre_particion.c_str(), ebr.part_name, 16) == 0 && ebr.part_status != '0') {
+                //Llenar de \0
+                if (type == 2) {
+                    fseek(archivo, ebr.part_start + sizeof(EBR), SEEK_SET);
+                    char vacio = '\0';
+                    for (int i = 0; i < ebr.part_s - sizeof(EBR); i++) { fwrite(&vacio, sizeof(char), 1, archivo); }
+                }
+
+                //Calcular el valor de N y Numero de Estructuras
+                double n;
+                if (sistemaArchivo == 1) {
+                    n = ((ebr.part_s - (sizeof(EBR))) - sizeof(SuperBloque)) /
+                        (4 + (sizeof(TablaInodo)) + (3 * sizeof(BloqueArchivo)));
+                    sb.s_filesystem_type = 2;
+                } else {
+                    n = ((ebr.part_s - (sizeof(EBR))) - sizeof(SuperBloque)) /
+                        (4 + (sizeof(Journaling)) + (sizeof(TablaInodo)) + (3 * sizeof(BloqueArchivo)));
+                    sb.s_filesystem_type = 3;
+                }
+
+                int num_estructura = floor(n);
+                int bloques = 3 * num_estructura;
+
+                //Inicializar SuperBloque
+                sb.s_inodes_count = num_estructura;
+                sb.s_blocks_count = bloques;
+                sb.s_free_inodes_count = num_estructura - 2;
+                sb.s_free_blocks_count = bloques - 2;
+                sb.s_inode_size = sizeof(TablaInodo);
+                sb.s_block_size = sizeof(BloqueArchivo);
+
+                if (sistemaArchivo == 1) { sb.s_bm_inode_start = (ebr.part_s + (sizeof(EBR))) + sizeof(SuperBloque); }
+                else {
+                    sb.s_bm_inode_start = (ebr.part_s + (sizeof(EBR))) + sizeof(SuperBloque) +
+                                          (num_estructura * sizeof(Journaling));
+                }
+
+                sb.s_first_ino = 2;
+                sb.s_first_blo = 2;
+                sb.s_bm_block_start = sb.s_bm_inode_start + num_estructura;
+                sb.s_inode_start = sb.s_bm_block_start + bloques;
+                sb.s_block_start = sb.s_inode_start + (num_estructura * sizeof(TablaInodo));
+
+                //Inicializar Inodo Raiz
+                ti.i_uid = 1;
+                ti.i_gid = 1;
+                ti.i_atime = time(nullptr);
+                ti.i_ctime = time(nullptr);
+                ti.i_mtime = time(nullptr);
+                ti.i_perm = 664;
+                ti.i_block[0] = sb.s_block_start;
+                for (int i = 1; i < 15; i++) { ti.i_block[i] = -1; }
+                ti.i_type = '0';
+                ti.i_s = 0;
+
+                fseek(archivo, sb.s_inode_start, SEEK_SET);
+                fwrite(&ti, sizeof(TablaInodo), 1, archivo);
+
+                strcpy(bc.b_content[0].b_name, ".");
+                bc.b_content[0].b_inodo = sb.s_inode_start;
+                strcpy(bc.b_content[1].b_name, "..");
+                bc.b_content[1].b_inodo = sb.s_inode_start;
+                strcpy(bc.b_content[2].b_name, "users.txt");
+                bc.b_content[2].b_inodo = sb.s_inode_start + sizeof(TablaInodo);
+                strcpy(bc.b_content[3].b_name, "");
+                bc.b_content[3].b_inodo = -1;
+                fseek(archivo, sb.s_block_start, SEEK_SET);
+                fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                //Generar Inodo y archivo Users.txt
+                TablaInodo tiUsers;
+                BloqueArchivo baUsers;
+
+                tiUsers.i_uid = 1;
+                tiUsers.i_gid = 1;
+                tiUsers.i_atime = time(nullptr);
+                tiUsers.i_ctime = time(nullptr);
+                tiUsers.i_mtime = time(nullptr);
+                tiUsers.i_perm = 700;
+                tiUsers.i_block[0] = sb.s_block_start + sizeof(BloqueCarpeta);
+                for (int i = 1; i < 15; i++) { tiUsers.i_block[i] = -1; }
+                string s = "1,G,root\n1,U,root,root,123\n";
+                tiUsers.i_s = s.size();
+                tiUsers.i_type = '1';
+
+                fseek(archivo, sb.s_inode_start + sizeof(TablaInodo), SEEK_SET);
+                fwrite(&tiUsers, sizeof(TablaInodo), 1, archivo);
+
+                memset(baUsers.b_content, '\0', sizeof(baUsers.b_content));
+                strcpy(baUsers.b_content, s.c_str());
+                fseek(archivo, sb.s_block_start + sizeof(BloqueCarpeta), SEEK_SET);
+                fwrite(&baUsers, sizeof(BloqueArchivo), 1, archivo);
+
+                //Inicializacion de Journaling para EXT3
+                if (sistemaArchivo == 2) {
+                    journal.sig = -1;
+                    journal.tipo = '0';
+                    journal.size = 0;
+                    journal.fecha = time(nullptr);
+                    strcpy(journal.tipo_operacion, "mkfs");
+                    journal.start = (ebr.part_s + (sizeof(EBR))) + sizeof(SuperBloque);
+                }
+
+                ebr.part_status = '2';
+
+                //Escritura en disco del ebr y el superbloque
+                fseek(archivo, ebr.part_start, SEEK_SET);
+                fwrite(&ebr, sizeof(EBR), 1, archivo);
+                fseek(archivo, ebr.part_start + sizeof(EBR), SEEK_SET);
+                fwrite(&sb, sizeof(SuperBloque), 1, archivo);
+
+                //Escrirtura de los BITMAP
+                char ch0 = '0';
+                char ch1 = '1';
+                fseek(archivo, sb.s_bm_inode_start, SEEK_SET);
+                for (int i = 0; i < num_estructura; i++) { fwrite(&ch0, sizeof(char), 1, archivo); }
+                fseek(archivo, sb.s_bm_inode_start, SEEK_SET);
+                fwrite(&ch1, sizeof(char), 1, archivo);
+                fwrite(&ch1, sizeof(char), 1, archivo);
+
+                fseek(archivo, sb.s_bm_block_start, SEEK_SET);
+                for (int i = 0; i < bloques; i++) { fwrite(&ch0, sizeof(char), 1, archivo); }
+                fseek(archivo, sb.s_bm_block_start, SEEK_SET);
+                fwrite(&ch1, sizeof(char), 1, archivo);
+                fwrite(&ch1, sizeof(char), 1, archivo);
+
+                if (sistemaArchivo == 2) {
+                    fseek(archivo, ebr.part_start + sizeof(EBR) + sizeof(SuperBloque), SEEK_SET);
+                    fwrite(&journal, sizeof(Journaling), 1, archivo);
+                }
+
+                string formato = "EXT2";
+                if (sistemaArchivo == 2) {
+                    formato = "EXT3";
+                }
+                cout << "La particion se formateo exitosamente " << formato << endl << endl;
+            } else {
+                this->eliminar(nodo->idCompleto);
+                cout << "No fue posible encontrar la Particion en el Disco... " << endl;
+                cout << "Se demontara la Particion " << endl << endl;
+            }
+        }
+        fclose(archivo);
+    } else{
+        this->eliminar(nodo->idCompleto);
+        cout << "No fue posible encontrar el Disco... " << endl;
+        cout << "Se demontara la Particion " << endl << endl;
+    }
+}
+
+//Comando Mkfs
+void ListaMount::mkfs(std::string id, std::string type, std::string fs) {
+    int valorType = this->obtenerType(type);
+    int valorFs = this->obtenerFs(fs);
+    NodoMount * nodo = this->buscar(id);
+
+    if(valorType != -1 && valorFs != -1 && nodo != NULL){
+        this->ext(valorType, valorFs, nodo);
+    }
+}

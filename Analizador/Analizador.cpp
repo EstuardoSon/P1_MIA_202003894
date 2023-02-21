@@ -331,6 +331,724 @@ void Analizador::analizar() {
         particion->fdisk();
     }
 
+        //Comando Mount
+    else if(tipoInst == 4){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        string path_param = ">path=";
+        string name_param = ">name=";
+        string id_param = "#id=";
+
+        NodoMount * mount = new NodoMount();
+
+        while(this->cadena.length() > 0) {
+            //Reconocer el parmatro ID
+            if (strncmp(this->toLower(this->cadena).c_str(),id_param.c_str(),id_param.length())==0){
+                this->obtenerDatoParamC(mount->idCompleto, id_param.length());
+            }
+
+            else if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatosPath(mount->fichero, mount->nombre_disco,path_param.length());
+            }
+
+                //Reconocer el parmatro NAME
+            else if (strncmp(this->toLower(this->cadena).c_str(),name_param.c_str(),name_param.length())==0){
+                this->obtenerDatoParamC(mount->nombre_particion, name_param.length());
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+
+        listaMount->agregar(mount);
+    }
+
+        //Comando Unmount
+    else if(tipoInst == 5){
+        this->cadena = this->trim(this->cadena.erase(0, 7));
+
+        string id_param = ">id=";
+        string idCompleto = "";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parmatro ID
+            else if (strncmp(this->toLower(this->cadena).c_str(),id_param.c_str(),id_param.length())==0){
+                this->obtenerDatoParamC(idCompleto, id_param.length());
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+
+        listaMount->eliminar(idCompleto);
+        listaMount->imprimirLista();
+    }
+
+        //Comando Mkfs
+    else if(tipoInst == 6){
+        this->cadena = this->trim(this->cadena.erase(0, 4));
+
+        string id_param = ">id=";
+        string type_param = ">type=";
+        string fs_param = ">fs=";
+        string id = "";
+        string type = "";
+        string fs = "";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro ID
+            else if (strncmp(this->toLower(this->cadena).c_str(), id_param.c_str(), id_param.length()) == 0) {
+                this->obtenerDatoParamC(id, id_param.length());
+            }
+
+                //Reconocer el parametro TYPE
+            else if (strncmp(this->toLower(this->cadena).c_str(), type_param.c_str(), type_param.length()) == 0) {
+                this->obtenerDatoParamS(type, type_param.length());
+            }
+
+                //Reconocer el parametro FS
+            else if (strncmp(this->toLower(this->cadena).c_str(), fs_param.c_str(), fs_param.length()) == 0) {
+                this->obtenerDatoParamS(fs, fs_param.length());
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+
+        this->listaMount->mkfs(id, type, fs);
+    }
+
+        //Comando Login
+    else if(tipoInst == 7){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        string usr_param = ">user=";
+        string pass_param = ">pass=";
+        string id_param = ">id=";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro USR
+            else if (strncmp(this->toLower(this->cadena).c_str(), usr_param.c_str(), usr_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro PASS
+            else if (strncmp(this->toLower(this->cadena).c_str(), pass_param.c_str(), pass_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro ID
+            else if (strncmp(this->toLower(this->cadena).c_str(), id_param.c_str(), id_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Logout
+    else if(tipoInst == 8){
+        this->cadena = this->trim(this->cadena.erase(0, 6));
+        if(this->cadena != ""){
+            cout << "Ingreso un parametro no reconocido" << endl;
+            cout << endl;
+            return;
+        }
+    }
+
+        //Comando Mkgrp
+    else if(tipoInst == 9){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        string name_param = ">name=";
+        string name = "";
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro Name
+            else if (strncmp(this->toLower(this->cadena).c_str(), name_param.c_str(), name_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Rmgrp
+    else if(tipoInst == 10){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        string name_param = ">name=";
+        string name = "";
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro Name
+            else if (strncmp(this->toLower(this->cadena).c_str(), name_param.c_str(), name_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Mkusr
+    else if(tipoInst == 11){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        string usr_param = ">user=";
+        string pass_param = ">pass=";
+        string grp_param = ">grp=";
+        string usuario = "", password = "", grupo = "";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro usr
+            else if (strncmp(this->toLower(this->cadena).c_str(), usr_param.c_str(), usr_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro pass
+            else if (strncmp(this->toLower(this->cadena).c_str(), pass_param.c_str(), pass_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro grp
+            else if (strncmp(this->toLower(this->cadena).c_str(), grp_param.c_str(), grp_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Rmusr
+    else if(tipoInst == 12){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        string usr_param = ">user=";
+        string usuario = "";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro usr
+            else if (strncmp(this->toLower(this->cadena).c_str(), usr_param.c_str(), usr_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Chmod
+    else if(tipoInst == 13){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        string path_param = ">path=";
+        string ugo_param = ">ugo=";
+        string r_param = ">r";
+        string path = "";
+        int ugo = 0;
+        bool r = false;
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro UGO
+            else if (strncmp(this->toLower(this->cadena).c_str(), ugo_param.c_str(), ugo_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro R
+            else if (strncmp(this->toLower(this->cadena).c_str(), r_param.c_str(), r_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Mkfile
+    else if(tipoInst == 14){
+        this->cadena = this->trim(this->cadena.erase(0, 6));
+
+        string path_param = ">path=";
+        string r_param = ">r";
+        string s_param = ">size=";
+        string cont_param = ">cont=";
+        string path_fichero = "", path_archivo = "", cont_fichero = "", cont_archivo = "";
+        int size = 0;
+        bool r = false;
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro R
+            else if (strncmp(this->toLower(this->cadena).c_str(), r_param.c_str(), r_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro S
+            else if (strncmp(this->toLower(this->cadena).c_str(), s_param.c_str(), s_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro CONT
+            else if (strncmp(this->toLower(this->cadena).c_str(), cont_param.c_str(), cont_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Cat
+    else if(tipoInst == 15){
+        this->cadena = this->trim(this->cadena.erase(0, 3));
+
+        regex regex_exp ("(>file)[0-9]+(=)");
+        vector<string> rutas;
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+            int pos = this->cadena.find("=");
+            string aux = this->cadena.substr(0,pos+1);
+
+            //Reconocer el parametro FileN
+            if (regex_match(aux, regex_exp)) {
+                string ruta = "";
+                this->obtenerDatoParamC(ruta,pos+1);
+                rutas.push_back(ruta);
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Remove
+    else if(tipoInst == 16){
+        this->cadena = this->trim(this->cadena.erase(0, 6));
+
+        string path_param = ">path=";
+        string path = "";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Edith
+    else if(tipoInst == 17){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        string path_param = ">path=";
+        string cont_param = ">cont=";
+        string path = "", cont = "";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro CONT
+            else if (strncmp(this->toLower(this->cadena).c_str(), cont_param.c_str(), cont_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Rename
+    else if(tipoInst == 18){
+        this->cadena = this->trim(this->cadena.erase(0, 6));
+
+        string path_param = ">path=";
+        string name_param = ">name=";
+        string path = "", name = "";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro NAME
+            else if (strncmp(this->toLower(this->cadena).c_str(), name_param.c_str(), name_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Mkdir
+    else if(tipoInst == 19){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        string path_param = ">path=";
+        string p_param = ">r";
+        string path = "";
+        bool p = false;
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro R
+            else if (strncmp(this->toLower(this->cadena).c_str(), p_param.c_str(), p_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Copy
+    else if(tipoInst == 20){
+        this->cadena = this->trim(this->cadena.erase(0, 4));
+
+        string path_param = ">path=";
+        string destino_param = ">destino=";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->cadena = this->trim(this->cadena.erase(0,path_param.length()));
+            }
+
+                //Reconocer el parametro DESTINO
+            else if (strncmp(this->toLower(this->cadena).c_str(), destino_param.c_str(), destino_param.length()) == 0) {
+                this->cadena = this->trim(this->cadena.erase(0,destino_param.length()));
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Move
+    else if(tipoInst == 21){
+        this->cadena = this->trim(this->cadena.erase(0, 4));
+
+        string path_param = ">path=";
+        string destino_param = ">destino=";
+        string path = "", destino = "";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro DESTINO
+            else if (strncmp(this->toLower(this->cadena).c_str(), destino_param.c_str(), destino_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Find
+    else if(tipoInst == 22){
+        this->cadena = this->trim(this->cadena.erase(0, 4));
+
+        string path_param = ">path=";
+        string name_param = ">name=";
+        string path = "", name = "";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro NAME
+            else if (strncmp(this->toLower(this->cadena).c_str(), name_param.c_str(), name_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Chown
+    else if(tipoInst == 23){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        string path_param = ">path=";
+        string r_param = ">r";
+        string usr_param = ">user=";
+        string path = "", usr = "";
+        bool r = false;
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro PATH
+            else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro R
+            else if (strncmp(this->toLower(this->cadena).c_str(), r_param.c_str(), r_param.length()) == 0) {
+            }
+
+                //Reconocer el parametro USR
+            else if (strncmp(this->toLower(this->cadena).c_str(), usr_param.c_str(), usr_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Chgrp
+    else if(tipoInst == 24){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        string usr_param = ">user=";
+        string grp_param = ">grp=";
+        string usr = "", grp = "";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro USUARIO
+            else if (strncmp(this->toLower(this->cadena).c_str(), usr_param.c_str(), usr_param.length()) == 0) {
+            }
+
+
+                //Reconocer el parametro GRUPO
+            else if (strncmp(this->toLower(this->cadena).c_str(), grp_param.c_str(), grp_param.length()) == 0) {
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Pause
+    else if(tipoInst == 25){
+        this->cadena = this->trim(this->cadena.erase(0, 5));
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)) {
+                break;
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+        cout << "Precione cualquier tecla para continuar... " << endl;
+        system("read continue");
+    }
+
+        //Comando Recovery
+    else if(tipoInst == 26){
+        this->cadena = this->trim(this->cadena.erase(0, 8));
+
+        string id_param = ">id=";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro Id
+            else if (strncmp(this->toLower(this->cadena).c_str(), id_param.c_str(), id_param.length()) == 0) {
+                //this->obtenerDatoParamC(fichero, 5);
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
+        //Comando Loss
+    else if(tipoInst == 27){
+        this->cadena = this->trim(this->cadena.erase(0, 4));
+
+        string id_param = ">id=";
+
+        while(this->cadena.length() > 0) {
+            if (this->verificarComentario(this->cadena)){
+                break;
+            }
+
+                //Reconocer el parametro Id
+            else if (strncmp(this->toLower(this->cadena).c_str(), id_param.c_str(), id_param.length()) == 0) {
+                //this->obtenerDatoParamC(fichero, 5);
+            }
+
+                //No se pudo reconocer el tipo de parametro
+            else {
+                cout << "Ingreso un parametro no reconocido" << endl;
+                cout << endl;
+                return;
+            }
+        }
+    }
+
         //Comando Exec
     else if (tipoInst == 28) {
         this->cadena = this->trim(this->cadena.erase(0, 4));
@@ -367,7 +1085,7 @@ void Analizador::analizar() {
                     string comandoS = comando;
                     comandoS = this->trim(comandoS);
                     if (comandoS.length() != 0) {
-                        Analizador *analizador = new Analizador(comandoS);
+                        Analizador *analizador = new Analizador(comandoS, this->listaMount);
                         analizador->analizar();
                     }
                 }
