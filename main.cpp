@@ -8,6 +8,7 @@ string toLower(string cadena);
 
 int main() {
     ListaMount * listaMount = new ListaMount();
+    Usuario * usuario = new Usuario();
     cout << "Proyecto 1 - MIA " << endl;
     cout << "Estuardo Gabriel Son Mux - 202003894 " << endl;
     cout << "Escriba Exit para finalizar la ejecucion " << endl;
@@ -26,7 +27,7 @@ int main() {
             break;
         }
 
-        Analizador *analizador = new Analizador(comando, listaMount);
+        Analizador *analizador = new Analizador(comando, listaMount, usuario);
         analizador->analizar();
     }
     return 0;

@@ -6,6 +6,7 @@
 #include "../Estructuras y Objetos/Disco.h"
 #include "../Estructuras y Objetos/Particion.h"
 #include "../Estructuras y Objetos/Reporte.h"
+#include "../Estructuras y Objetos/AdminUsuario.h"
 #include <regex>
 #include <iostream>
 #include <stdio.h>
@@ -15,8 +16,10 @@
 
 using namespace std;
 
-Analizador::Analizador(std::string cadena, ListaMount *listamount) {
+Analizador::Analizador(std::string cadena, ListaMount *listamount, Usuario *usuario) {
     this->cadena = this->trim(cadena);
+    this->listaMount = listaMount;
+    this->usuario = usuario;
 }
 
 //Convertir en Minusculas
@@ -207,6 +210,10 @@ void Analizador::analizar() {
     //Comando Mkdisk
     if (tipoInst == 1) {
         this->cadena = this->trim(this->cadena.erase(0, 6));
+
+        string s_param = ">size=";
+        string f_param = ">fit=";
+        string u_param = ">unit=";
         string path_param = ">path=";
 
         Disco *disco = new Disco();
@@ -214,6 +221,21 @@ void Analizador::analizar() {
         while(this->cadena.length()>0){
             if (this->verificarComentario(this->cadena)){
                 break;
+            }
+
+                //Reconocer el parametro S
+            else if (strncmp(this->toLower(this->cadena).c_str(),s_param.c_str(),s_param.length())==0){
+                this->obtenerDatoParamN(disco->s, s_param.length());
+            }
+
+                //Reconocer el parametro F
+            else if (strncmp(this->toLower(this->cadena).c_str(),f_param.c_str(),f_param.length())==0){
+                this->obtenerDatoParamS(disco->f, f_param.length());
+            }
+
+                //Reconocer el parmatro U
+            else if (strncmp(this->toLower(this->cadena).c_str(),u_param.c_str(),u_param.length())==0){
+                this->obtenerDatoParamS(disco->u, u_param.length());
             }
 
                 //Reconocer el parametro PATH
@@ -451,6 +473,11 @@ void Analizador::analizar() {
         string pass_param = ">pass=";
         string id_param = ">id=";
 
+        AdminUsuario * admin = new AdminUsuario(this->listaMount,this->usuario);
+        string usuario = "";
+        string password = "";
+        string idParticion = "";
+
         while(this->cadena.length() > 0) {
             if (this->verificarComentario(this->cadena)){
                 break;
@@ -458,14 +485,17 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro USR
             else if (strncmp(this->toLower(this->cadena).c_str(), usr_param.c_str(), usr_param.length()) == 0) {
+                this->obtenerDatoParamC(usuario, usr_param.length());
             }
 
                 //Reconocer el parametro PASS
             else if (strncmp(this->toLower(this->cadena).c_str(), pass_param.c_str(), pass_param.length()) == 0) {
+                this->obtenerDatoParamC(password, pass_param.length());
             }
 
                 //Reconocer el parametro ID
             else if (strncmp(this->toLower(this->cadena).c_str(), id_param.c_str(), id_param.length()) == 0) {
+                this->obtenerDatoParamC(idParticion, id_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -475,6 +505,7 @@ void Analizador::analizar() {
                 return;
             }
         }
+        admin->login(usuario,password,idParticion);
     }
 
         //Comando Logout
@@ -485,6 +516,8 @@ void Analizador::analizar() {
             cout << endl;
             return;
         }
+        AdminUsuario * admin = new AdminUsuario(this->listaMount, this->usuario);
+        admin->logout();
     }
 
         //Comando Mkgrp
@@ -500,6 +533,7 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro Name
             else if (strncmp(this->toLower(this->cadena).c_str(), name_param.c_str(), name_param.length()) == 0) {
+                this->obtenerDatoParamC(name, name_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -509,6 +543,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        AdminUsuario * admin = new AdminUsuario(this->listaMount,this->usuario);
+        admin->mkgrp(name);
     }
 
         //Comando Rmgrp
@@ -524,6 +561,7 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro Name
             else if (strncmp(this->toLower(this->cadena).c_str(), name_param.c_str(), name_param.length()) == 0) {
+                this->obtenerDatoParamC(name, name_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -533,6 +571,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        AdminUsuario * admin = new AdminUsuario(this->listaMount,this->usuario);
+        admin->rmgrp(name);
     }
 
         //Comando Mkusr
@@ -1085,7 +1126,7 @@ void Analizador::analizar() {
                     string comandoS = comando;
                     comandoS = this->trim(comandoS);
                     if (comandoS.length() != 0) {
-                        Analizador *analizador = new Analizador(comandoS, this->listaMount);
+                        Analizador *analizador = new Analizador(comando, listaMount, usuario);
                         analizador->analizar();
                     }
                 }

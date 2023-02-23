@@ -7,6 +7,7 @@
 
 #include <string>
 #include "Estructura.h"
+#include "ListaMount.h"
 
 using namespace std;
 

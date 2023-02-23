@@ -32,6 +32,8 @@ public:
     void reporteMBR();
     void crearParticionRMBR(FILE * archivoReporte, FILE * archivoDisco, Partition & partition);
     void crearParticionLRMBR(FILE * archivoReporte, FILE * archivoDisco, int part_start);
+    void reporteDisk();
+    void reporteSb();
 };
 
 

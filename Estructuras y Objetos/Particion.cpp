@@ -3,7 +3,6 @@
 //
 
 #include "Particion.h"
-
 #include "Estructura.h"
 #include <iostream>
 #include <cstring>

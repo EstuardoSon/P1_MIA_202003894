@@ -8,14 +8,16 @@
 #include <string>
 #include "../Estructuras y Objetos/Estructura.h"
 #include "../Estructuras y Objetos/ListaMount.h"
+#include "../Estructuras y Objetos/Usuario.h"
 
 using namespace std;
 
 class Analizador {
 public:
-    Analizador(string cadena, ListaMount *listaMount);
-    ListaMount * listaMount;
+    Analizador(string cadena, ListaMount * listaMount, Usuario * usuario);
     string cadena;
+    ListaMount * listaMount;
+    Usuario * usuario;
 
     void analizar();
     void obtenerDatosPath(string &fichero, string &nombre, int tamanio);
