@@ -25,6 +25,9 @@ public:
     void logout();
     void mkgrp(string name);
     void rmgrp(string name);
+    void mkusr(string usuario, string password, string grupo);
+    void rmusr(string usuario);
+    void chgrp(string usuario, string grupo);
     void writeInFile(string texto, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
     int buscarBM_b(SuperBloque &sb, FILE * archivo);
     void obtenerUG(string cadena, vector<string> & usuarios, vector<string> & grupos);

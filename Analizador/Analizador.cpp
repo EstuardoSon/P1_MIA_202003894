@@ -592,14 +592,17 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro usr
             else if (strncmp(this->toLower(this->cadena).c_str(), usr_param.c_str(), usr_param.length()) == 0) {
+                this->obtenerDatoParamC(usuario, usr_param.length());
             }
 
                 //Reconocer el parametro pass
             else if (strncmp(this->toLower(this->cadena).c_str(), pass_param.c_str(), pass_param.length()) == 0) {
+                this->obtenerDatoParamC(password, pass_param.length());
             }
 
                 //Reconocer el parametro grp
             else if (strncmp(this->toLower(this->cadena).c_str(), grp_param.c_str(), grp_param.length()) == 0) {
+                this->obtenerDatoParamC(grupo, grp_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -609,6 +612,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        AdminUsuario * admin = new AdminUsuario(this->listaMount,this->usuario);
+        admin->mkusr(usuario, password, grupo);
     }
 
         //Comando Rmusr
@@ -625,6 +631,7 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro usr
             else if (strncmp(this->toLower(this->cadena).c_str(), usr_param.c_str(), usr_param.length()) == 0) {
+                this->obtenerDatoParamC(usuario, usr_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -634,6 +641,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        AdminUsuario * admin = new AdminUsuario(this->listaMount,this->usuario);
+        admin->rmusr(usuario);
     }
 
         //Comando Chmod
@@ -1004,11 +1014,13 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro USUARIO
             else if (strncmp(this->toLower(this->cadena).c_str(), usr_param.c_str(), usr_param.length()) == 0) {
+                this->obtenerDatoParamC( usr, usr_param.length());
             }
 
 
                 //Reconocer el parametro GRUPO
             else if (strncmp(this->toLower(this->cadena).c_str(), grp_param.c_str(), grp_param.length()) == 0) {
+                this->obtenerDatoParamC(grp, grp_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -1018,6 +1030,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        AdminUsuario * admin = new AdminUsuario(this->listaMount, this->usuario);
+        admin->chgrp(usr,grp);
     }
 
         //Comando Pause

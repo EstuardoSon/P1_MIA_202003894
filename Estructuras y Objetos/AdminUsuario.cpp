@@ -339,6 +339,353 @@ void AdminUsuario::rmgrp(string name) {
     }
 }
 
+//Comando Mkusr
+void AdminUsuario::mkusr(string usuario, string password, string grupo) {
+    usuario = this->trim(usuario);
+    password = this->trim(password);
+    grupo = this->trim(grupo);
+    if(this->usuario->idParticion == ""){
+        cout << "No hay una sesion iniciada con anterioridad" << endl << endl;
+        return;
+    }
+    else if(this->usuario->nombreU != "root" && this->usuario->nombreG != "root"){
+        cout << "El usuario actual no puede ejecutar el comando" << endl << endl;
+        return;
+    }
+    else if((usuario.size() >= 10 || usuario.size() == 0) || (password.size() >= 10 || password.size() == 0) || (grupo.size() >= 10 || grupo.size() == 0)){
+        cout << "Los parametros deben contener un maximo de 10 caracteres" << endl << endl;
+        return;
+    }
+
+    NodoMount * nodo = this->listaMount->buscar(this->usuario->idParticion);
+    if (nodo != NULL) {
+        FILE *archivo = fopen((nodo->fichero + "/" + nodo->nombre_disco).c_str(), "rb+");
+        if (archivo != NULL) {
+            SuperBloque sb;
+            int inicioSB = 0;
+
+            //Particion Primaria
+            if (nodo->part_type == 'P') {
+                MBR mbr;
+                fseek(archivo, 0, SEEK_SET);
+                fread(&mbr, sizeof(MBR), 1, archivo);
+                int i;
+
+                //Verificar la existencia de la particion
+                for (i = 0; i < 4; i++) {
+                    if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0) {
+                        inicioSB = mbr.mbr_partition_[i].part_start;
+                        break;
+                    }
+                }
+
+                //Error de posicion no encontrada
+                if (i == 5) {
+                    listaMount->eliminar(nodo->idCompleto);
+                    cout << "No fue posible encontrar la particion en el disco" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+
+                    //Posicion si Encontrada
+                else {
+                    if (mbr.mbr_partition_[i].part_status != '2') {
+                        cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                        fclose(archivo);
+                        return;
+                    }
+                    //Recuperar la informacion del superbloque
+                    fseek(archivo, mbr.mbr_partition_[i].part_start, SEEK_SET);
+                    fread(&sb, sizeof(SuperBloque), 1, archivo);
+                }
+            }
+
+                //Particiones Logicas
+            else if (nodo->part_type == 'L') {
+                EBR ebr;
+                fseek(archivo, nodo->part_start, SEEK_SET);
+                fread(&ebr, sizeof(EBR), 1, archivo);
+                if (ebr.part_status != '2') {
+                    cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+                inicioSB = nodo->part_start;
+                fread(&sb, sizeof(SuperBloque), 1, archivo);
+            }
+
+            //Acceder al archivo user.txt
+            string utxt = this->getContentF(sb.s_inode_start + sizeof(TablaInodo), archivo);
+            vector<string> usuarios;
+            vector<string> grupos;
+            this->obtenerUG(utxt, usuarios, grupos);
+
+            bool banderaG = false, banderaU = false;
+
+            for(int i = 0; i < grupos.size(); i++){
+                vector<string> gDatos = this->split(grupos[i],',');
+                if(gDatos[2] == grupo && gDatos[0] != "0"){
+                    banderaG = true;
+                    break;
+                }
+            }
+
+            if(banderaG){
+                for(int i = 0; i < usuarios.size(); i++){
+                    vector<string> uDatos = this->split(usuarios[i],',');
+                    if(uDatos[3] == usuario && uDatos[0] != "0"){
+                        banderaU = true;
+                        break;
+                    }
+                }
+
+                if(!banderaU){
+                    int numeroG = usuarios.size() +1;
+                    utxt += to_string(numeroG)+",U,"+grupo+","+usuario+"," + password + "\n";
+                    this->writeInFile(utxt, sb, inicioSB, sb.s_inode_start + sizeof(TablaInodo), archivo);
+                }
+                else{ cout << "Ya existe un usuario con el nombre solicitado" << endl << endl; }
+            }
+            else{ cout << "El grupo no existe" << endl << endl; }
+            fclose(archivo);
+        } else {
+            listaMount->eliminar(nodo->idCompleto);
+            cout << "No fue posible encontrar el disco de la particion" << endl << endl;
+            return;
+        }
+    }
+}
+
+//Comando Rmusr
+void AdminUsuario::rmusr(string usuario) {
+    usuario = this->trim(usuario);
+    if(this->usuario->idParticion == ""){
+        cout << "No hay una sesion iniciada con anterioridad" << endl << endl;
+        return;
+    }
+    else if(this->usuario->nombreU != "root" && this->usuario->nombreG != "root"){
+        cout << "El usuario actual no puede ejecutar el comando" << endl << endl;
+        return;
+    }
+
+    NodoMount * nodo = this->listaMount->buscar(this->usuario->idParticion);
+    if (nodo != NULL) {
+        FILE *archivo = fopen((nodo->fichero + "/" + nodo->nombre_disco).c_str(), "rb+");
+        if (archivo != NULL) {
+            SuperBloque sb;
+            int inicioSB = 0;
+
+            //Particion Primaria
+            if (nodo->part_type == 'P') {
+                MBR mbr;
+                fseek(archivo, 0, SEEK_SET);
+                fread(&mbr, sizeof(MBR), 1, archivo);
+                int i;
+
+                //Verificar la existencia de la particion
+                for (i = 0; i < 4; i++) {
+                    if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0) {
+                        inicioSB = mbr.mbr_partition_[i].part_start;
+                        break;
+                    }
+                }
+
+                //Error de posicion no encontrada
+                if (i == 5) {
+                    listaMount->eliminar(nodo->idCompleto);
+                    cout << "No fue posible encontrar la particion en el disco" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+
+                    //Posicion si Encontrada
+                else {
+                    if (mbr.mbr_partition_[i].part_status != '2') {
+                        cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                        fclose(archivo);
+                        return;
+                    }
+                    //Recuperar la informacion del superbloque
+                    fseek(archivo, mbr.mbr_partition_[i].part_start, SEEK_SET);
+                    fread(&sb, sizeof(SuperBloque), 1, archivo);
+                }
+            }
+
+                //Particiones Logicas
+            else if (nodo->part_type == 'L') {
+                EBR ebr;
+                fseek(archivo, nodo->part_start, SEEK_SET);
+                fread(&ebr, sizeof(EBR), 1, archivo);
+                if (ebr.part_status != '2') {
+                    cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+                inicioSB = nodo->part_start;
+                fread(&sb, sizeof(SuperBloque), 1, archivo);
+            }
+
+            //Acceder al archivo user.txt
+            string utxt = this->getContentF(sb.s_inode_start + sizeof(TablaInodo), archivo);
+            vector<string> grupos;
+            vector<string> usuarios;
+            this->obtenerUG(utxt, usuarios, grupos);
+
+            bool bandera = false;
+            for(int i = 0; i < usuarios.size(); i++){
+                vector<string> datos = this->split(usuarios[i],',');
+                if(datos[0] != "0" && datos[3] == usuario){
+                    bandera = true;
+                    break;
+                }
+            }
+
+            if(bandera){
+                vector<string> contenido = this->split(utxt,'\n');
+                string final = "";
+                for(int i = 0; i < contenido.size(); i++){
+                    vector<string> datos = this->split(contenido[i],',');
+                    if(datos.size() == 5){
+                        if(datos[0] != "0" && datos[3] == usuario){
+                            final += "0,"+datos[1]+","+datos[2]+","+datos[3]+","+datos[4]+"\n";
+                        }
+                        else{ final += contenido[i]+"\n"; }
+                    }
+                    else if(datos.size() == 3){ final += contenido[i]+"\n"; }
+                }
+
+                this->writeInFile(final, sb, inicioSB, sb.s_inode_start + sizeof(TablaInodo), archivo);
+            }
+            else{ cout << "El usuario que desea eliminar no existe" << endl << endl; }
+            fclose(archivo);
+        } else {
+            listaMount->eliminar(nodo->idCompleto);
+            cout << "No fue posible encontrar el disco de la particion" << endl << endl;
+            return;
+        }
+    }
+}
+
+//Comando Chgrp
+void AdminUsuario::chgrp(string usuario, string grupo) {
+    grupo = this->trim(grupo);
+    usuario = this->trim(usuario);
+    if(this->usuario->idParticion == ""){
+        cout << "No hay una sesion iniciada con anterioridad" << endl << endl;
+        return;
+    }
+    else if(this->usuario->nombreU != "root" && this->usuario->nombreG != "root"){
+        cout << "El usuario actual no puede ejecutar el comando" << endl << endl;
+        return;
+    }
+
+    NodoMount * nodo = this->listaMount->buscar(this->usuario->idParticion);
+    if (nodo != NULL) {
+        FILE *archivo = fopen((nodo->fichero + "/" + nodo->nombre_disco).c_str(), "rb+");
+        if (archivo != NULL) {
+            SuperBloque sb;
+            int inicioSB = 0;
+
+            //Particion Primaria
+            if (nodo->part_type == 'P') {
+                MBR mbr;
+                fseek(archivo, 0, SEEK_SET);
+                fread(&mbr, sizeof(MBR), 1, archivo);
+                int i;
+
+                //Verificar la existencia de la particion
+                for (i = 0; i < 4; i++) {
+                    if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0) {
+                        inicioSB = mbr.mbr_partition_[i].part_start;
+                        break;
+                    }
+                }
+
+                //Error de posicion no encontrada
+                if (i == 5) {
+                    listaMount->eliminar(nodo->idCompleto);
+                    cout << "No fue posible encontrar la particion en el disco" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+
+                    //Posicion si Encontrada
+                else {
+                    if (mbr.mbr_partition_[i].part_status != '2') {
+                        cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                        fclose(archivo);
+                        return;
+                    }
+                    //Recuperar la informacion del superbloque
+                    fseek(archivo, mbr.mbr_partition_[i].part_start, SEEK_SET);
+                    fread(&sb, sizeof(SuperBloque), 1, archivo);
+                }
+            }
+
+                //Particiones Logicas
+            else if (nodo->part_type == 'L') {
+                EBR ebr;
+                fseek(archivo, nodo->part_start, SEEK_SET);
+                fread(&ebr, sizeof(EBR), 1, archivo);
+                if (ebr.part_status != '2') {
+                    cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+                inicioSB = nodo->part_start;
+                fread(&sb, sizeof(SuperBloque), 1, archivo);
+            }
+
+            //Acceder al archivo user.txt
+            string utxt = this->getContentF(sb.s_inode_start + sizeof(TablaInodo), archivo);
+            vector<string> grupos;
+            vector<string> usuarios;
+            this->obtenerUG(utxt, usuarios, grupos);
+
+            bool bandera = false, banderaU = false;
+            for(int i = 0; i < grupos.size(); i++){
+                vector<string> datos = this->split(grupos[i],',');
+                if(datos[0] != "0" && datos[2] == grupo){
+                    bandera = true;
+                    break;
+                }
+            }
+
+            for(int i = 0; i < usuarios.size(); i++){
+                vector<string> datos = this->split(usuarios[i],',');
+                if(datos[0] != "0" && datos[3] == usuario){
+                    banderaU = true;
+                    break;
+                }
+            }
+
+            if(bandera && banderaU){
+                vector<string> contenido = this->split(utxt,'\n');
+                string final = "";
+                for(int i = 0; i < contenido.size(); i++){
+                    vector<string> datos = this->split(contenido[i],',');
+                    if(datos.size() == 3){ final += contenido[i]+"\n"; }
+                    else if(datos.size() == 5){
+                        if(datos[0] != "0" && datos[3] == usuario){
+                            final += datos[0]+",U,"+grupo+","+usuario+","+datos[4]+"\n";
+                        }
+                        else{ final += contenido[i]+"\n"; }
+                    }
+                }
+
+                this->writeInFile(final, sb, inicioSB, sb.s_inode_start + sizeof(TablaInodo), archivo);
+            }
+            else{ cout << "El grupo y/o usuario no existe" << endl << endl; }
+            fclose(archivo);
+        } else {
+            listaMount->eliminar(nodo->idCompleto);
+            cout << "No fue posible encontrar el disco de la particion" << endl << endl;
+            fclose(archivo);
+            return;
+        }
+    }
+}
+
 int AdminUsuario::buscarBM_b(SuperBloque &sb, FILE * archivo) {
     fseek(archivo, sb.s_bm_block_start, SEEK_SET);
     for(int i = 0; i < sb.s_blocks_count; i++){
