@@ -50,8 +50,10 @@ void Reporte::generarReporte() {
         this->reporteSb();
     }
     else if(this->name == "bm_inode"){
+        this->reporteBmInode();
     }
     else if(this->name == "bm_bloc"){
+        this->reporteBmBlock();
     }
     else if(this->name == "inode"){
     }
@@ -510,6 +512,202 @@ void Reporte::reporteSb() {
                               "/reporteSb.dot -o \"" + this->fichero_p + "/" + this->archivo_p + "\"";
                     system(comando.c_str());
                     cout << "Reporte de SB generado con Exito" << endl << endl;
+                } else{
+                    cout << "La Particion no exite dentro del disco..." << endl << endl;
+                    cout << "Desmontando la particion" << endl << endl;
+                    this->listaMount->eliminar(nodo->id);
+                }
+                t0:
+                fclose(archivoDisco);
+            } else{
+                cout << "No fue posible encontrar el Disco... " << endl;
+                cout << "Desmontando particion" << endl << endl;
+                this->listaMount->eliminar(this->id);
+            }
+        }
+    }
+}
+
+//Generar Reporte Bm Inode
+void Reporte::reporteBmInode() {
+    if (this->fichero_p != "" && this->archivo_p != "" &&
+        verificarRuta(this->fichero_p, this->archivo_p, "[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ]+")) {
+        NodoMount *nodo = this->listaMount->buscar(this->id);
+
+        if (nodo != NULL) {
+            FILE *archivoDisco = fopen((nodo->fichero + "/" + nodo->nombre_disco).c_str(), "rb");
+
+            if(archivoDisco != NULL) {
+                //Creacion de los ficheros y dando permisos
+                string comando = "sudo -S mkdir -p \'" + this->fichero_p + "\'";
+                system(comando.c_str());
+                comando = "sudo -S chmod -R 777  \'" + this->fichero_p + "\'";
+                system(comando.c_str());
+
+                MBR mbr;
+                fread(&mbr, sizeof(MBR), 1, archivoDisco);
+
+                SuperBloque sb;
+                bool verificar = false;
+                for(int i = 0; i < 4; i++) {
+                    if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0 &&
+                        nodo->part_type == mbr.mbr_partition_[i].part_type) {
+                        if (mbr.mbr_partition_[i].part_status == '2') {
+                            fseek(archivoDisco, mbr.mbr_partition_[i].part_start, SEEK_SET);
+                            fread(&sb, sizeof(SuperBloque), 1, archivoDisco);
+                            verificar = true;
+                            break;
+                        } else if(mbr.mbr_partition_[i].part_status == '1') {
+                            cout << "No se ha aplicado el comando MKFS a la Particion" << endl << endl;
+                            goto t0;
+                        }else if(mbr.mbr_partition_[i].part_status == '0') {
+                            cout << "No se encontro la Particion en el Disco..." << endl;
+                            cout << "Desmontando la Praticion" << endl << endl;
+                            this->listaMount->eliminar(nodo->idCompleto);
+                            goto t0;
+                        }
+                    } else if (mbr.mbr_partition_[i].part_type == 'E' &&
+                               nodo->part_type == 'L') {
+                        EBR ebr;
+                        fseek(archivoDisco, nodo->part_start, SEEK_SET);
+                        fread(&ebr, sizeof(EBR), 1, archivoDisco);
+
+                        if (strncmp(ebr.part_name, nodo->nombre_particion.c_str(), 16) == 0) {
+                            if (ebr.part_status == '2') {
+                                fseek(archivoDisco, ebr.part_start + sizeof(EBR), SEEK_SET);
+                                fread(&sb, sizeof(SuperBloque), 1, archivoDisco);
+                                verificar = true;
+                                break;
+                            } else if (ebr.part_status == '1') {
+                                cout << "No se ha aplicado el comando MKFS a la Particion" << endl << endl;
+                                goto t0;
+                            } else if (ebr.part_status == '0') {
+                                cout << "No se encontro la Particion en el Disco..." << endl;
+                                cout << "Desmontando la Praticion" << endl << endl;
+                                this->listaMount->eliminar(nodo->idCompleto);
+                                goto t0;
+                            }
+                        }
+                    }
+                }
+
+                if(verificar){
+                    FILE *archivoReporte = fopen((this->fichero_p + "/"+this->archivo_p+".txt").c_str(), "w+");
+                    fseek(archivoDisco, sb.s_bm_inode_start,SEEK_SET);
+                    int aux = 0;
+                    for(int i = 0; i < sb.s_inodes_count; i++){
+                        char caracter;
+                        fread(&caracter, sizeof(caracter), 1, archivoDisco);
+                        string caracterS = "";
+                        caracterS += caracter;
+                        fprintf(archivoReporte,"%s  ", caracterS.c_str());
+                        aux++;
+                        if(aux == 20){
+                            fprintf(archivoReporte,"\n");
+                            aux = 0;
+                        }
+                    }
+
+                    fclose(archivoReporte);
+                    cout << "Reporte de BM Inode generado con Exito" << endl << endl;
+                } else{
+                    cout << "La Particion no exite dentro del disco..." << endl << endl;
+                    cout << "Desmontando la particion" << endl << endl;
+                    this->listaMount->eliminar(nodo->id);
+                }
+                t0:
+                fclose(archivoDisco);
+            } else{
+                cout << "No fue posible encontrar el Disco... " << endl;
+                cout << "Desmontando particion" << endl << endl;
+                this->listaMount->eliminar(this->id);
+            }
+        }
+    }
+}
+
+//Generar Reporte Bm Inode
+void Reporte::reporteBmBlock() {
+    if (this->fichero_p != "" && this->archivo_p != "" &&
+        verificarRuta(this->fichero_p, this->archivo_p, "[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ]+")) {
+        NodoMount *nodo = this->listaMount->buscar(this->id);
+
+        if (nodo != NULL) {
+            FILE *archivoDisco = fopen((nodo->fichero + "/" + nodo->nombre_disco).c_str(), "rb");
+
+            if(archivoDisco != NULL) {
+                //Creacion de los ficheros y dando permisos
+                string comando = "sudo -S mkdir -p \'" + this->fichero_p + "\'";
+                system(comando.c_str());
+                comando = "sudo -S chmod -R 777  \'" + this->fichero_p + "\'";
+                system(comando.c_str());
+
+                MBR mbr;
+                fread(&mbr, sizeof(MBR), 1, archivoDisco);
+
+                SuperBloque sb;
+                bool verificar = false;
+                for(int i = 0; i < 4; i++) {
+                    if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0 &&
+                        nodo->part_type == mbr.mbr_partition_[i].part_type) {
+                        if (mbr.mbr_partition_[i].part_status == '2') {
+                            fseek(archivoDisco, mbr.mbr_partition_[i].part_start, SEEK_SET);
+                            fread(&sb, sizeof(SuperBloque), 1, archivoDisco);
+                            verificar = true;
+                            break;
+                        } else if(mbr.mbr_partition_[i].part_status == '1') {
+                            cout << "No se ha aplicado el comando MKFS a la Particion" << endl << endl;
+                            goto t0;
+                        }else if(mbr.mbr_partition_[i].part_status == '0') {
+                            cout << "No se encontro la Particion en el Disco..." << endl;
+                            cout << "Desmontando la Praticion" << endl << endl;
+                            this->listaMount->eliminar(nodo->idCompleto);
+                            goto t0;
+                        }
+                    } else if (mbr.mbr_partition_[i].part_type == 'E' &&
+                               nodo->part_type == 'L') {
+                        EBR ebr;
+                        fseek(archivoDisco, nodo->part_start, SEEK_SET);
+                        fread(&ebr, sizeof(EBR), 1, archivoDisco);
+
+                        if (strncmp(ebr.part_name, nodo->nombre_particion.c_str(), 16) == 0) {
+                            if (ebr.part_status == '2') {
+                                fseek(archivoDisco, ebr.part_start + sizeof(EBR), SEEK_SET);
+                                fread(&sb, sizeof(SuperBloque), 1, archivoDisco);
+                                verificar = true;
+                                break;
+                            } else if (ebr.part_status == '1') {
+                                cout << "No se ha aplicado el comando MKFS a la Particion" << endl << endl;
+                                goto t0;
+                            } else if (ebr.part_status == '0') {
+                                cout << "No se encontro la Particion en el Disco..." << endl;
+                                cout << "Desmontando la Praticion" << endl << endl;
+                                this->listaMount->eliminar(nodo->idCompleto);
+                                goto t0;
+                            }
+                        }
+                    }
+                }
+
+                if(verificar){
+                    FILE *archivoReporte = fopen((this->fichero_p + "/"+this->archivo_p+".txt").c_str(), "w+");
+                    fseek(archivoDisco, sb.s_bm_block_start,SEEK_SET);
+                    int aux = 0;
+                    for(int i = 0; i < sb.s_blocks_count; i++){
+                        char caracter;
+                        fread(&caracter, sizeof(caracter), 1, archivoDisco);
+                        string caracterS = "";
+                        caracterS += caracter;
+                        fprintf(archivoReporte,"%s  ", caracterS.c_str());
+                        aux++;
+                        if(aux == 20){
+                            fprintf(archivoReporte,"\n");
+                            aux = 0;
+                        }
+                    }
+
+                    fclose(archivoReporte);
+                    cout << "Reporte de BM Blocks generado con Exito" << endl << endl;
                 } else{
                     cout << "La Particion no exite dentro del disco..." << endl << endl;
                     cout << "Desmontando la particion" << endl << endl;

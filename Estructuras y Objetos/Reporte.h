@@ -34,6 +34,8 @@ public:
     void crearParticionLRMBR(FILE * archivoReporte, FILE * archivoDisco, int part_start);
     void reporteDisk();
     void reporteSb();
+    void reporteBmInode();
+    void reporteBmBlock();
 };
 
 

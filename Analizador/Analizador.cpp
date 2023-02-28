@@ -7,6 +7,7 @@
 #include "../Estructuras y Objetos/Particion.h"
 #include "../Estructuras y Objetos/Reporte.h"
 #include "../Estructuras y Objetos/AdminUsuario.h"
+#include "../Estructuras y Objetos/GestorArchivos.h"
 #include <regex>
 #include <iostream>
 #include <stdio.h>
@@ -702,18 +703,23 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro PATH
             else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatosPath(path_fichero,path_archivo,  path_param.length());
             }
 
                 //Reconocer el parametro R
             else if (strncmp(this->toLower(this->cadena).c_str(), r_param.c_str(), r_param.length()) == 0) {
+                r = true;
+                this->cadena = this->trim(this->cadena.erase(0,r_param.length()));
             }
 
                 //Reconocer el parametro S
             else if (strncmp(this->toLower(this->cadena).c_str(), s_param.c_str(), s_param.length()) == 0) {
+                this->obtenerDatoParamN(size, s_param.length());
             }
 
                 //Reconocer el parametro CONT
             else if (strncmp(this->toLower(this->cadena).c_str(), cont_param.c_str(), cont_param.length()) == 0) {
+                this->obtenerDatosPath(cont_fichero,cont_archivo, cont_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -723,7 +729,11 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        GestorArchivos * gestor = new GestorArchivos(this->listaMount,this->usuario);
+        gestor->mkfile(path_fichero, path_archivo,r,size,cont_fichero, cont_archivo);
     }
+
 
         //Comando Cat
     else if(tipoInst == 15){

@@ -103,6 +103,12 @@ build CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/AdminUsuario.cpp.o: 
   OBJECT_DIR = CMakeFiles/P1_MIA_202003894.dir
   OBJECT_FILE_DIR = CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos
 
+build CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/GestorArchivos.cpp.o: CXX_COMPILER__P1_MIA_202003894_Debug /home/estuardo/CLionProjects/P1_MIA_202003894/Estructuras$ y$ Objetos/GestorArchivos.cpp || cmake_object_order_depends_target_P1_MIA_202003894
+  DEP_FILE = CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/GestorArchivos.cpp.o.d
+  FLAGS = -g -fdiagnostics-color=always -std=gnu++17
+  OBJECT_DIR = CMakeFiles/P1_MIA_202003894.dir
+  OBJECT_FILE_DIR = CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos
+
 
 # =============================================================================
 # Link build statements for EXECUTABLE target P1_MIA_202003894
@@ -111,7 +117,7 @@ build CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/AdminUsuario.cpp.o: 
 #############################################
 # Link the executable P1_MIA_202003894
 
-build P1_MIA_202003894: CXX_EXECUTABLE_LINKER__P1_MIA_202003894_Debug CMakeFiles/P1_MIA_202003894.dir/main.cpp.o CMakeFiles/P1_MIA_202003894.dir/Analizador/Analizador.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/Disco.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/Reporte.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/Particion.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/ListaMount.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/NodoMount.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/Usuario.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/AdminUsuario.cpp.o
+build P1_MIA_202003894: CXX_EXECUTABLE_LINKER__P1_MIA_202003894_Debug CMakeFiles/P1_MIA_202003894.dir/main.cpp.o CMakeFiles/P1_MIA_202003894.dir/Analizador/Analizador.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/Disco.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/Reporte.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/Particion.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/ListaMount.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/NodoMount.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/Usuario.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/AdminUsuario.cpp.o CMakeFiles/P1_MIA_202003894.dir/Estructuras_y_Objetos/GestorArchivos.cpp.o
   FLAGS = -g
   OBJECT_DIR = CMakeFiles/P1_MIA_202003894.dir
   POST_BUILD = :
