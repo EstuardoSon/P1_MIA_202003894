@@ -734,7 +734,6 @@ void Analizador::analizar() {
         gestor->mkfile(path_fichero, path_archivo,r,size,cont_fichero, cont_archivo);
     }
 
-
         //Comando Cat
     else if(tipoInst == 15){
         this->cadena = this->trim(this->cadena.erase(0, 3));
@@ -764,6 +763,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        GestorArchivos *gestos = new GestorArchivos(listaMount, usuario);
+        gestos->cat(rutas);
     }
 
         //Comando Remove
@@ -867,10 +869,13 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro PATH
             else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatoParamC(path,path_param.length());
             }
 
                 //Reconocer el parametro R
             else if (strncmp(this->toLower(this->cadena).c_str(), p_param.c_str(), p_param.length()) == 0) {
+                p = true;
+                this->cadena = this->trim(this->cadena.erase(0,p_param.length()));
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -880,6 +885,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        GestorArchivos * gestor = new GestorArchivos(listaMount, usuario);
+        gestor->mkdir(path,p);
     }
 
         //Comando Copy

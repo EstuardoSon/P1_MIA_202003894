@@ -21,8 +21,12 @@ public:
 
     GestorArchivos(ListaMount * listaMount, Usuario * usuario);
     void mkfile(string path_fichero, string path_archivo, bool r, int size, string cont_fichero, string cont_archivo);
+    void cat(vector<string> rutas);
+    void mkdir(string path, bool r);
 
     void buscarfichero(vector<string> &ficheros, string nombreArchivo, bool r, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo,string textoArchivo);
+    void buscarficheroCat(vector<string> &ficheros, string nombreArchivo, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
+    void buscarficheroMkdir(vector<string> &ficheros, string newCarpeta, bool r, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
 
     int buscarBM_b(SuperBloque &sb, FILE * archivo);
     int buscarBM_i(SuperBloque &sb, FILE * archivo);

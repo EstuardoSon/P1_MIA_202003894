@@ -187,6 +187,391 @@ void GestorArchivos::buscarfichero(vector<string> &ficheros, string nombreArchiv
     }
 }
 
+
+void GestorArchivos::cat(vector<string> rutas) {
+    if(this->usuario->nombreG == "" && this->usuario->nombreU == ""){
+        cout << "No existe una sesion iniciada" << endl << endl;
+        return;
+    }
+    NodoMount * nodo = this->listaMount->buscar(this->usuario->idParticion);
+    if (nodo != NULL) {
+        FILE *archivo = fopen((nodo->fichero + "/" + nodo->nombre_disco).c_str(), "rb+");
+        if (archivo != NULL) {
+            SuperBloque sb;
+            int inicioSB = 0;
+
+            //Particion Primaria
+            if (nodo->part_type == 'P') {
+                MBR mbr;
+                fseek(archivo, 0, SEEK_SET);
+                fread(&mbr, sizeof(MBR), 1, archivo);
+                int i;
+
+                //Verificar la existencia de la particion
+                for (i = 0; i < 4; i++) {
+                    if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0) {
+                        inicioSB = mbr.mbr_partition_[i].part_start;
+                        break;
+                    }
+                }
+
+                //Error de posicion no encontrada
+                if (i == 5) {
+                    listaMount->eliminar(nodo->idCompleto);
+                    cout << "No fue posible encontrar la particion en el disco" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+
+                    //Posicion si Encontrada
+                else {
+                    if (mbr.mbr_partition_[i].part_status != '2') {
+                        cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                        fclose(archivo);
+                        return;
+                    }
+                    //Recuperar la informacion del superbloque
+                    fseek(archivo, mbr.mbr_partition_[i].part_start, SEEK_SET);
+                    fread(&sb, sizeof(SuperBloque), 1, archivo);
+                }
+            }
+
+                //Particiones Logicas
+            else if (nodo->part_type == 'L') {
+                EBR ebr;
+                fseek(archivo, nodo->part_start, SEEK_SET);
+                fread(&ebr, sizeof(EBR), 1, archivo);
+                if (ebr.part_status != '2') {
+                    cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+                inicioSB = nodo->part_start;
+                fread(&sb, sizeof(SuperBloque), 1, archivo);
+            }
+
+            int i;
+            regex expresion(
+                    "(\\/)([a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ ]+(\\/))*[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ ]+(\\.[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ ]+)");
+            for(i = 0; i < rutas.size(); i++){
+                if (!regex_match(rutas[i], expresion)) {
+                    cout << "Ruta no valida: " << rutas[i] << endl;
+                }
+                else{
+                    vector<string> ficheros = this->split(rutas[i],'/');
+                    string nombreArchivo = ficheros.back();
+                    ficheros.pop_back();
+                    this->buscarficheroCat(ficheros,nombreArchivo,sb,inicioSB,sb.s_inode_start,archivo);
+                }
+            }
+
+            cout << endl;
+            fclose(archivo);
+        } else {
+            listaMount->eliminar(nodo->idCompleto);
+            cout << "No fue posible encontrar el disco de la particion" << endl << endl;
+            return;
+        }
+    }
+}
+
+//Realizar acciones del comando cat
+void GestorArchivos::buscarficheroCat(vector<string> &ficheros, string nombreArchivo, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo) {
+    TablaInodo ti;
+
+    //Obtener Inodo
+    fseek(archivo, inicioInodo, SEEK_SET);
+    fread(&ti, sizeof(TablaInodo), 1, archivo);
+    bool escritura = false, lectura = false;
+    this->verificarPermisos(ti, escritura, lectura);
+
+    if (ficheros.size() > 0) {
+        if(lectura){
+            if (ti.i_type == '0') {
+                string fichero = ficheros[0];
+                ficheros.erase(ficheros.begin());
+                int ubicacion = this->buscarEnCarpeta(ti, inicioInodo, archivo,fichero);
+
+                if (ubicacion != -1) {
+                    this->buscarficheroCat(ficheros, nombreArchivo, sb, inicioSB, ubicacion, archivo);
+                } else { cout << "No se encontro el fichero " << fichero << endl << endl; }
+            }
+            else { cout << "El inodo no corresponde a una carpeta" << endl << endl; }
+        } else{ cout << "El usuario no tiene permisos de Lectura" << endl << endl; }
+    }
+    else{
+        if(lectura){
+            if (ti.i_type == '0') {
+                int ubicacion = this->buscarEnCarpeta(ti, inicioInodo, archivo,nombreArchivo);
+
+                if (ubicacion != -1) {
+                    TablaInodo iArchivo;
+                    fseek(archivo, ubicacion, SEEK_SET);
+                    fread(&iArchivo, sizeof(TablaInodo), 1, archivo);
+
+                    if(iArchivo.i_type == '1') {
+                        cout << this->getContentF(ubicacion, archivo) << endl << endl;
+                    }else { cout << "El inodo no corresponde a un archivo" << endl << endl; }
+                } else { cout << "El archivo no existe" << endl << endl; }
+            }
+            else { cout << "El inodo no corresponde a una carpeta" << endl << endl; }
+        } else{ cout << "El usuario no tiene permisos de Lectura" << endl << endl; }
+    }
+}
+
+
+void GestorArchivos::mkdir(string path, bool r) {
+    if(this->usuario->nombreG == "" && this->usuario->nombreU == ""){
+        cout << "No existe una sesion iniciada" << endl << endl;
+        return;
+    }
+    NodoMount * nodo = this->listaMount->buscar(this->usuario->idParticion);
+    if (nodo != NULL) {
+        FILE *archivo = fopen((nodo->fichero + "/" + nodo->nombre_disco).c_str(), "rb+");
+        if (archivo != NULL) {
+            SuperBloque sb;
+            int inicioSB = 0;
+
+            //Particion Primaria
+            if (nodo->part_type == 'P') {
+                MBR mbr;
+                fseek(archivo, 0, SEEK_SET);
+                fread(&mbr, sizeof(MBR), 1, archivo);
+                int i;
+
+                //Verificar la existencia de la particion
+                for (i = 0; i < 4; i++) {
+                    if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0) {
+                        inicioSB = mbr.mbr_partition_[i].part_start;
+                        break;
+                    }
+                }
+
+                //Error de posicion no encontrada
+                if (i == 5) {
+                    listaMount->eliminar(nodo->idCompleto);
+                    cout << "No fue posible encontrar la particion en el disco" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+
+                    //Posicion si Encontrada
+                else {
+                    if (mbr.mbr_partition_[i].part_status != '2') {
+                        cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                        fclose(archivo);
+                        return;
+                    }
+                    //Recuperar la informacion del superbloque
+                    fseek(archivo, mbr.mbr_partition_[i].part_start, SEEK_SET);
+                    fread(&sb, sizeof(SuperBloque), 1, archivo);
+                }
+            }
+
+                //Particiones Logicas
+            else if (nodo->part_type == 'L') {
+                EBR ebr;
+                fseek(archivo, nodo->part_start, SEEK_SET);
+                fread(&ebr, sizeof(EBR), 1, archivo);
+                if (ebr.part_status != '2') {
+                    cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+                inicioSB = nodo->part_start;
+                fread(&sb, sizeof(SuperBloque), 1, archivo);
+            }
+
+            if (this->verificarPath(path)) {
+                path = path.erase(0, 1);
+                vector<string> ficheros = this->split(path, '/');
+                string newCarpeta = ficheros.back();
+                ficheros.pop_back();
+
+                this->buscarficheroMkdir(ficheros, newCarpeta, r, sb, inicioSB, sb.s_inode_start, archivo);
+            }
+
+            fclose(archivo);
+        } else {
+            listaMount->eliminar(nodo->idCompleto);
+            cout << "No fue posible encontrar el disco de la particion" << endl << endl;
+            return;
+        }
+    }
+}
+
+//Realizar acciones del comando mkdir
+void GestorArchivos::buscarficheroMkdir(vector<string> &ficheros, string newCarpeta, bool r, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo) {
+    TablaInodo ti;
+
+    //Obtener Inodo
+    fseek(archivo, inicioInodo, SEEK_SET);
+    fread(&ti, sizeof(TablaInodo), 1, archivo);
+    bool escritura = false, lectura = false;
+    this->verificarPermisos(ti, escritura, lectura);
+
+    if (ficheros.size() > 0) {
+        if (ti.i_type == '0') {
+            string fichero = ficheros[0];
+            ficheros.erase(ficheros.begin());
+            int ubicacion = this->buscarEnCarpeta(ti, inicioInodo, archivo, fichero);
+
+            if (ubicacion != -1) {
+                this->buscarficheroMkdir(ficheros, newCarpeta, r, sb, inicioSB, ubicacion, archivo);
+
+            } else if (ubicacion == -1 && r) {
+                if (escritura) {
+                    ubicacion = this->buscarEspacioCarpeta(ti, inicioInodo, archivo, fichero, sb, inicioSB);
+                    if (ubicacion != -1) {
+                        cout << "Fichero Creado: " << fichero << endl << endl;
+                        this->buscarficheroMkdir(ficheros, newCarpeta, r, sb, inicioSB, ubicacion, archivo);
+
+                        ti.i_mtime = time(nullptr);
+                        fseek(archivo, inicioInodo, SEEK_SET);
+                        fwrite(&ti, sizeof(TablaInodo), 1, archivo);
+                    } else {
+                        cout << endl;
+                        return;
+                    }
+                } else { cout << "El usuario no tiene permisos de Escritura" << endl << endl; }
+            } else { cout << "No se encontro el fichero" << fichero << endl << endl; }
+        } else { cout << "El inodo no corresponde a una carpeta" << endl << endl; }
+    } else{
+        if (ti.i_type == '0') {
+            int ubicacion = this->buscarEnCarpeta(ti, inicioInodo, archivo, newCarpeta);
+
+            if (ubicacion != -1) {
+                cout << "La carpeta ya existe" << endl << endl;
+
+            } else {
+                if (escritura) {
+                    ubicacion = this->buscarEspacioCarpeta(ti, inicioInodo, archivo, newCarpeta, sb, inicioSB);
+                    if (ubicacion != -1) {
+                        cout << "Fichero Creado: " << newCarpeta << endl << endl;
+
+                        ti.i_mtime = time(nullptr);
+                        fseek(archivo, inicioInodo, SEEK_SET);
+                        fwrite(&ti, sizeof(TablaInodo), 1, archivo);
+                    } else {
+                        cout << endl;
+                        return;
+                    }
+                } else { cout << "El usuario no tiene permisos de Escritura" << endl << endl; }
+            }
+        } else { cout << "El inodo no corresponde a una carpeta" << endl << endl; }
+    }
+}
+
+
+//Obtener la informacion de un archivo en disco
+string GestorArchivos::getContentF(int inicioInodo, FILE *archivo) {
+    TablaInodo ti;
+    BloqueArchivo ba;
+    BloqueApuntadores bap, bap1, bap2;
+    string contenido = "";
+
+    //Obtener Inodo
+    fseek(archivo, inicioInodo, SEEK_SET);
+    fread(&ti, sizeof(TablaInodo), 1, archivo);
+
+    //Recorrer Array de Bloques de inodo
+    for (int i = 0; i < 15; i++) {
+        if(ti.i_block[i] != -1){
+            fseek(archivo,ti.i_block[i],SEEK_SET);
+
+            //Bloques directos
+            if(i<=11){
+                fread(&ba, sizeof(BloqueArchivo), 1, archivo);
+                for(int j = 0; j < 64; j++){
+                    if(ba.b_content[j] != '\0'){
+                        contenido += ba.b_content[j];
+                        continue;
+                    }
+                    break;
+                }
+            }
+
+                //Bloque simple indirecto
+            else if(i==12){
+                fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+                for (int j = 0; j < 16; j++) {
+                    if(bap.b_pointers[j] != -1){
+                        fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                        fread(&ba, sizeof(BloqueArchivo), 1, archivo);
+                        for(int k = 0; k < 64; k++){
+                            if(ba.b_content[k] != '\0'){
+                                contenido += ba.b_content[k];
+                                continue;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+                //Bloque doble indirecto
+            else if(i==13){
+                fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+                for (int j = 0; j < 16; j++) {
+                    if(bap.b_pointers[j] != -1){
+                        fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                        fread(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+                        for(int k = 0; k < 16; k++){
+                            if(bap1.b_pointers[k] != -1){
+                                fseek(archivo, bap1.b_pointers[k], SEEK_SET);
+                                fread(&ba, sizeof(BloqueArchivo), 1, archivo);
+                                for(int l = 0; l < 64; l++){
+                                    if(ba.b_content[l] != '\0'){
+                                        contenido += ba.b_content[l];
+                                        continue;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+                //Bloque triple indirecto
+            else if(i==14){
+                fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+                for (int j = 0; j < 16; j++) {
+                    if(bap.b_pointers[j] != -1){
+                        fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                        fread(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+                        for(int k = 0; k < 16; k++){
+                            if(bap1.b_pointers[k] != -1){
+                                fseek(archivo, bap1.b_pointers[k], SEEK_SET);
+                                fread(&bap2, sizeof(BloqueApuntadores), 1, archivo);
+                                for(int l = 0; l < 16; l++){
+                                    if(bap2.b_pointers[l] != -1){
+                                        fseek(archivo, bap2.b_pointers[l], SEEK_SET);
+                                        fread(&ba, sizeof(BloqueArchivo), 1, archivo);
+                                        for(int m = 0; m < 64; m++){
+                                            if(ba.b_content[m] != '\0'){
+                                                contenido += ba.b_content[m];
+                                                continue;
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    ti.i_atime = time(nullptr);
+
+    fseek(archivo, inicioInodo, SEEK_SET);
+    fwrite(&ti, sizeof(TablaInodo), 1, archivo);
+    return contenido;
+}
+
 //Buscar bloque libre en bitmap bloques
 int GestorArchivos::buscarBM_b(SuperBloque &sb, FILE * archivo) {
     fseek(archivo, sb.s_bm_block_start, SEEK_SET);
@@ -2285,6 +2670,35 @@ void GestorArchivos::writeInFile(string texto, SuperBloque &sb, int inicioSB, in
     }
     else{
         cout << "El texto que desea ingresar supear el limite del archivo" << endl << endl;
+    }
+}
+
+//Verificar los permisos de escritura y lectura de un usuario en un inodo
+void GestorArchivos::verificarPermisos(TablaInodo & inodo, bool &escritura, bool &lectura) {
+    if(this->usuario->nombreG == "root"){
+        escritura = true;
+        lectura = true;
+        return;
+    }
+
+    int permisos = inodo.i_perm;
+    int propietario = permisos / 100;
+    permisos = permisos - (propietario * 100);
+    int grupo = permisos / 10;
+    permisos = permisos - (grupo * 10);
+    int otros = permisos;
+
+    if(this->usuario->idU == inodo.i_uid){
+        if(propietario > 3){ lectura = true; }
+        if(propietario == 2 || propietario == 3 || propietario == 6 || propietario == 7) { escritura = true; }
+    }
+    else if(this->usuario->idG == inodo.i_gid){
+        if(grupo > 3){ lectura = true; }
+        if(grupo == 2 || grupo == 3 || grupo == 6 || grupo == 7) { grupo = true; }
+    }
+    else{
+        if(otros > 3){ lectura = true; }
+        if(otros == 2 || otros == 3 || otros == 6 || otros == 7) { otros = true; }
     }
 }
 
