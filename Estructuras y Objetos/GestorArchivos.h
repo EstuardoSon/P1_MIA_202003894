@@ -20,12 +20,18 @@ public:
     Usuario * usuario;
 
     GestorArchivos(ListaMount * listaMount, Usuario * usuario);
+    void chmod(string path, int ugo, bool r);
     void mkfile(string path_fichero, string path_archivo, bool r, int size, string cont_fichero, string cont_archivo);
     void cat(vector<string> rutas);
+    void remove(string path);
+    void edit(string path, string contenido);
+    void rename(string path, string nombre);
     void mkdir(string path, bool r);
 
+    int buscarficheroChmod(vector<string> &ficheros, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
     void buscarfichero(vector<string> &ficheros, string nombreArchivo, bool r, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo,string textoArchivo);
     void buscarficheroCat(vector<string> &ficheros, string nombreArchivo, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
+    int buscarficheroRemove(vector<string> &ficheros, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
     void buscarficheroMkdir(vector<string> &ficheros, string newCarpeta, bool r, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
 
     int buscarBM_b(SuperBloque &sb, FILE * archivo);
@@ -36,11 +42,14 @@ public:
     void crearCarpeta(FILE *archivo, SuperBloque &sb, int &ubicacion, int inicioInodo);
     void crearArchivo(FILE *archivo, string textoArchivo, SuperBloque &sb, int inicioSB);
 
+    void buscarEnCarpetaChmod(int ubicacion, int ugo, FILE *archivo);
     int buscarEnCarpeta(TablaInodo &ti, int inicioInodo, FILE *archivo, string nombre);
     bool buscarEspacio(TablaInodo &ti, int incioInodo, SuperBloque &sb, int inicioSB, FILE * archivo, int inicioMove, string nombreMove);
 
     int buscarEspacioArchivo(TablaInodo &ti, int inicioInodo, FILE *archivo, string nombre, SuperBloque &sb, int inicioSB, string textoArchivo);
     int buscarEspacioCarpeta(TablaInodo &ti, int inicioInodo, FILE *archivo, string nombre, SuperBloque &sb, int inicioSB);
+
+    bool eliminar(int inicioInodo, FILE * archivo, SuperBloque &sb, int inicioSB);
 
     bool verificarPath(string cadena);
     bool verificarUGO(int ugo);

@@ -665,14 +665,18 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro PATH
             else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatoParamC(path, path_param.length());
             }
 
                 //Reconocer el parametro UGO
             else if (strncmp(this->toLower(this->cadena).c_str(), ugo_param.c_str(), ugo_param.length()) == 0) {
+                this->obtenerDatoParamN(ugo,ugo_param.length());
             }
 
                 //Reconocer el parametro R
             else if (strncmp(this->toLower(this->cadena).c_str(), r_param.c_str(), r_param.length()) == 0) {
+                r = true;
+                this->cadena = this->trim(this->cadena.erase(0,r_param.length()));
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -682,6 +686,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        GestorArchivos * gestor = new GestorArchivos(listaMount, usuario);
+        gestor->chmod(path,ugo,r);
     }
 
         //Comando Mkfile
@@ -782,6 +789,7 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro PATH
             else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatoParamC(path,path_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -791,6 +799,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        GestorArchivos *gestor = new GestorArchivos(listaMount,usuario);
+        gestor->remove(path);
     }
 
         //Comando Edith
@@ -808,10 +819,12 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro PATH
             else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatoParamC(path,path_param.length());
             }
 
                 //Reconocer el parametro CONT
             else if (strncmp(this->toLower(this->cadena).c_str(), cont_param.c_str(), cont_param.length()) == 0) {
+                this->obtenerDatoParamC(cont,  cont_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -821,6 +834,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        GestorArchivos *gestor = new GestorArchivos(listaMount, usuario);
+        gestor->edit(path, cont);
     }
 
         //Comando Rename
@@ -838,10 +854,12 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro PATH
             else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatoParamC(path, path_param.length());
             }
 
                 //Reconocer el parametro NAME
             else if (strncmp(this->toLower(this->cadena).c_str(), name_param.c_str(), name_param.length()) == 0) {
+                this->obtenerDatoParamC(name, name_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -851,6 +869,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        GestorArchivos *gestor = new GestorArchivos(listaMount, usuario);
+        gestor->rename(path, name);
     }
 
         //Comando Mkdir
