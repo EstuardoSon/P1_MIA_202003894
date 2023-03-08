@@ -27,12 +27,16 @@ public:
     void edit(string path, string contenido);
     void rename(string path, string nombre);
     void mkdir(string path, bool r);
+    void move(string path, string destino);
+    void find(string path, string name);
+    void chown(string path, string usr, bool r);
 
     int buscarficheroChmod(vector<string> &ficheros, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
     void buscarfichero(vector<string> &ficheros, string nombreArchivo, bool r, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo,string textoArchivo);
     void buscarficheroCat(vector<string> &ficheros, string nombreArchivo, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
     int buscarficheroRemove(vector<string> &ficheros, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
     void buscarficheroMkdir(vector<string> &ficheros, string newCarpeta, bool r, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
+    bool buscarficheroMove(vector<string> &ficheros, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo, int inicioMove, string nombreMove);
 
     int buscarBM_b(SuperBloque &sb, FILE * archivo);
     int buscarBM_i(SuperBloque &sb, FILE * archivo);
@@ -45,6 +49,8 @@ public:
     void buscarEnCarpetaChmod(int ubicacion, int ugo, FILE *archivo);
     int buscarEnCarpeta(TablaInodo &ti, int inicioInodo, FILE *archivo, string nombre);
     bool buscarEspacio(TablaInodo &ti, int incioInodo, SuperBloque &sb, int inicioSB, FILE * archivo, int inicioMove, string nombreMove);
+    void buscarEnCarpetaFind(int inicioInodo, SuperBloque &sb, int inicioSB, FILE *archivo, string nombre, int identacion);
+    void buscarEnCarpetaChown(int inicioInodo, SuperBloque &sb, int inicioSB, FILE *archivo, int u, int g, bool r);
 
     int buscarEspacioArchivo(TablaInodo &ti, int inicioInodo, FILE *archivo, string nombre, SuperBloque &sb, int inicioSB, string textoArchivo);
     int buscarEspacioCarpeta(TablaInodo &ti, int inicioInodo, FILE *archivo, string nombre, SuperBloque &sb, int inicioSB);

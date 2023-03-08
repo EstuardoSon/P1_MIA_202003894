@@ -36,6 +36,21 @@ public:
     void reporteSb();
     void reporteBmInode();
     void reporteBmBlock();
+    void reporteInode();
+    void reporteBlock();
+    void blockCarpeta(int posicion, FILE *archivoDisco, FILE *archivoReporte);
+    void blockArchivo(int posicion, FILE *archivoDisco, FILE *archivoReporte);
+    void blockApuntador(int posicion, FILE *archivoDisco, FILE *archivoReporte);
+    void reporteFile();
+    void reporteTree();
+    void treeInodo(int posicion, int noInodo, FILE *archivoDisco, FILE *archivoReporte, string &conexiones);
+    void treeArchivo(int posicion, FILE *archivoDisco, FILE *archivoReporte, string &conexiones);
+    void treeCarpeta(int posicion, FILE *archivoDisco, FILE *archivoReporte, string &conexiones);
+    void treeApuntador(int posicion, FILE *archivoDisco, FILE *archivoReporte, string &conexiones);
+    vector<string> split(string cadena,char delim);
+    string getContentF(int inicioInodo, FILE *archivo);
+    int buscarFichero(vector<string> &ficheros, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
+    int buscarEnCarpeta(TablaInodo &ti, int inicioInodo, FILE *archivo, string nombre);
 };
 
 

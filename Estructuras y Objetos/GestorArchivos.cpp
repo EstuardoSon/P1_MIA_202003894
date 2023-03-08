@@ -2162,6 +2162,1373 @@ void GestorArchivos::buscarficheroMkdir(vector<string> &ficheros, string newCarp
 }
 
 
+void GestorArchivos::move(string path, string destino) {
+    if (this->usuario->nombreG == "" && this->usuario->nombreU == "") {
+        cout << "No existe una sesion iniciada" << endl << endl;
+        return;
+    }
+    NodoMount *nodo = this->listaMount->buscar(this->usuario->idParticion);
+    if (nodo != NULL) {
+        FILE *archivo = fopen((nodo->fichero + "/" + nodo->nombre_disco).c_str(), "rb+");
+        if (archivo != NULL) {
+            SuperBloque sb;
+            int inicioSB = 0;
+
+            //Particion Primaria
+            if (nodo->part_type == 'P') {
+                MBR mbr;
+                fseek(archivo, 0, SEEK_SET);
+                fread(&mbr, sizeof(MBR), 1, archivo);
+                int i;
+
+                //Verificar la existencia de la particion
+                for (i = 0; i < 4; i++) {
+                    if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0) {
+                        inicioSB = mbr.mbr_partition_[i].part_start;
+                        break;
+                    }
+                }
+
+                //Error de posicion no encontrada
+                if (i == 5) {
+                    listaMount->eliminar(nodo->idCompleto);
+                    cout << "No fue posible encontrar la particion en el disco" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+
+                    //Posicion si Encontrada
+                else {
+                    if (mbr.mbr_partition_[i].part_status != '2') {
+                        cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                        fclose(archivo);
+                        return;
+                    }
+                    //Recuperar la informacion del superbloque
+                    fseek(archivo, mbr.mbr_partition_[i].part_start, SEEK_SET);
+                    fread(&sb, sizeof(SuperBloque), 1, archivo);
+                }
+            }
+
+                //Particiones Logicas
+            else if (nodo->part_type == 'L') {
+                EBR ebr;
+                fseek(archivo, nodo->part_start, SEEK_SET);
+                fread(&ebr, sizeof(EBR), 1, archivo);
+                if (ebr.part_status != '2') {
+                    cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+                inicioSB = nodo->part_start;
+                fread(&sb, sizeof(SuperBloque), 1, archivo);
+            }
+
+            regex expresion(
+                    "(\\/)(([a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ ]+(\\/))*[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ ]+(\\.[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ ]+)?)?");
+            if (!regex_match(path, expresion) || !this->verificarPath(destino)) {
+                cout << "Ruta en path y/o en destino no valida " << endl << endl;
+            } else {
+                path = path.erase(0, 1);
+                vector<string> ficheros = this->split(path, '/');
+
+                int ubicacion = this->buscarficheroRemove(ficheros, sb, inicioSB, sb.s_inode_start, archivo);
+
+                if(ubicacion != -1){
+                    TablaInodo ti;
+                    fseek(archivo, ubicacion, SEEK_SET);
+                    fread(&ti, sizeof(TablaInodo), 1, archivo);
+
+                    if(ti.i_type == '1'){
+                        cout << "El nombre no correponde a una carpeta" << endl << endl;
+                    }
+                    else if (ti.i_type == '0') {
+                        BloqueApuntadores bap, bap1, bap2;
+                        BloqueCarpeta bc;
+                        TablaInodo tiAux;
+                        char vacio = '\0', cero = '0';
+                        for (int i = 0; i < 15; i++) {
+                            if (ti.i_block[i] != -1) {
+                                if (i == 0) {
+                                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                                    fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                                    for (int c = 2; c < 4; c++) {
+                                        if (bc.b_content[c].b_inodo != -1 && strncmp(ficheros[0].c_str(),bc.b_content[c].b_name,12) == 0) {
+                                            fseek(archivo, bc.b_content[c].b_inodo, SEEK_SET);
+                                            fread(&tiAux, sizeof(TablaInodo), 1, archivo);
+                                            bool escritura, lectura;
+                                            this->verificarPermisos(tiAux,escritura,lectura);
+
+                                            if(escritura) {
+                                                vector<string> ficherosD = this->split(destino, '/');
+                                                if(this->buscarficheroMove(ficherosD,sb,inicioSB,sb.s_inode_start,archivo,bc.b_content[c].b_inodo,ficheros[0])){}
+                                                tiAux.i_mtime = time(nullptr);
+                                                fseek(archivo, bc.b_content[c].b_inodo, SEEK_SET);
+                                                fwrite(&tiAux, sizeof(TablaInodo), 1, archivo);
+
+                                                for(int v = 0 ; v < 12; v++){ bc.b_content[c].b_name[v] = vacio; };
+                                                bc.b_content[c].b_inodo = -1;
+                                                fseek(archivo, ti.i_block[i], SEEK_SET);
+                                                fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                                                cout << "Proceso Finalizado con Exito" << endl << endl;
+                                            } else { cout << "El usuario no posee permisos de escritura en la carpeta/archivo" << endl << endl; }
+                                            goto t0;
+                                        }
+                                    }
+                                }
+                                else if (i < 12) {
+                                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                                    fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                                    for (int c = 0; c < 4; c++) {
+                                        if (bc.b_content[c].b_inodo != -1 && strncmp(ficheros[0].c_str(),bc.b_content[c].b_name,12) == 0) {
+                                            fseek(archivo, bc.b_content[c].b_inodo, SEEK_SET);
+                                            fread(&tiAux, sizeof(TablaInodo), 1, archivo);
+                                            bool escritura, lectura;
+                                            this->verificarPermisos(tiAux,escritura,lectura);
+
+                                            if(escritura) {
+                                                vector<string> ficherosD = this->split(destino, '/');
+                                                if(this->buscarficheroMove(ficherosD,sb,inicioSB,sb.s_inode_start,archivo,bc.b_content[c].b_inodo,ficheros[0])){}
+                                                tiAux.i_mtime = time(nullptr);
+                                                fseek(archivo, bc.b_content[c].b_inodo, SEEK_SET);
+                                                fwrite(&tiAux, sizeof(TablaInodo), 1, archivo);
+
+                                                for(int v = 0 ; v < 12; v++){ bc.b_content[c].b_name[v] = vacio; };
+                                                bc.b_content[c].b_inodo = -1;
+                                                fseek(archivo, ti.i_block[i], SEEK_SET);
+                                                fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                                                cout << "Proceso Finalizado con Exito" << endl << endl;
+                                            }else { cout << "El usuario no posee permisos de escritura en la carpeta/archivo" << endl << endl; }
+                                            goto t0;
+                                        }
+                                    }
+                                }
+                                else if (i == 12) {
+                                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                                    fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+                                    for (int j = 0; j < 16; j++) {
+                                        if (bap.b_pointers[j] != -1) {
+                                            fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                                            fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                                            for (int c = 0; c < 4; c++) {
+                                                if (bc.b_content[c].b_inodo != -1 && strncmp(ficheros[0].c_str(),bc.b_content[c].b_name,12) == 0) {
+                                                    fseek(archivo, bc.b_content[c].b_inodo, SEEK_SET);
+                                                    fread(&tiAux, sizeof(TablaInodo), 1, archivo);
+                                                    bool escritura, lectura;
+                                                    this->verificarPermisos(tiAux,escritura,lectura);
+
+                                                    if(escritura) {
+                                                        vector<string> ficherosD = this->split(destino, '/');
+                                                        if(this->buscarficheroMove(ficherosD,sb,inicioSB,sb.s_inode_start,archivo,bc.b_content[c].b_inodo,ficheros[0])){}
+                                                        tiAux.i_mtime = time(nullptr);
+                                                        fseek(archivo, bc.b_content[c].b_inodo, SEEK_SET);
+                                                        fwrite(&tiAux, sizeof(TablaInodo), 1, archivo);
+
+                                                        for(int v = 0 ; v < 12; v++){ bc.b_content[c].b_name[v] = vacio; };
+                                                        bc.b_content[c].b_inodo = -1;
+                                                        fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                                                        fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                                                        cout << "Proceso Finalizado con Exito" << endl << endl;
+                                                    }else { cout << "El usuario no posee permisos de escritura en la carpeta/archivo" << endl << endl; }
+                                                    goto t0;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                else if (i == 13) {
+                                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                                    fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+                                    for (int j = 0; j < 16; j++) {
+                                        if (bap.b_pointers[j] != -1) {
+                                            fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                                            fread(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+                                            for (int k = 0; k < 16; k++) {
+                                                if (bap1.b_pointers[k] != -1) {
+                                                    fseek(archivo, bap1.b_pointers[k], SEEK_SET);
+                                                    fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                                                    for (int c = 0; c < 4; c++) {
+                                                        if (bc.b_content[c].b_inodo != -1 && strncmp(ficheros[0].c_str(),bc.b_content[c].b_name,12) == 0) {
+                                                            fseek(archivo, bc.b_content[c].b_inodo, SEEK_SET);
+                                                            fread(&tiAux, sizeof(TablaInodo), 1, archivo);
+                                                            bool escritura, lectura;
+                                                            this->verificarPermisos(tiAux,escritura,lectura);
+
+                                                            if(escritura) {
+                                                                vector<string> ficherosD = this->split(destino, '/');
+                                                                if(this->buscarficheroMove(ficherosD,sb,inicioSB,sb.s_inode_start,archivo,bc.b_content[c].b_inodo,ficheros[0])){}
+                                                                tiAux.i_mtime = time(nullptr);
+                                                                fseek(archivo, bc.b_content[c].b_inodo, SEEK_SET);
+                                                                fwrite(&tiAux, sizeof(TablaInodo), 1, archivo);
+
+                                                                for(int v = 0 ; v < 12; v++){ bc.b_content[c].b_name[v] = vacio; };
+                                                                bc.b_content[c].b_inodo = -1;
+                                                                fseek(archivo, bap.b_pointers[k], SEEK_SET);
+                                                                fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                                                                cout << "Proceso Finalizado con Exito" << endl << endl;
+                                                            }else { cout << "El usuario no posee permisos de escritura en la carpeta/archivo" << endl << endl; }
+                                                            goto t0;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                else if (i == 14) {
+                                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                                    fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+                                    for (int j = 0; j < 16; j++) {
+                                        if (bap.b_pointers[j] != -1) {
+                                            fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                                            fread(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+                                            for (int k = 0; k < 16; k++) {
+                                                if (bap1.b_pointers[k] != -1) {
+                                                    fseek(archivo, bap1.b_pointers[k], SEEK_SET);
+                                                    fread(&bap2, sizeof(BloqueApuntadores), 1, archivo);
+
+                                                    for (int l = 0; l < 16; l++) {
+                                                        if (bap2.b_pointers[l] != -1) {
+                                                            fseek(archivo, bap2.b_pointers[l], SEEK_SET);
+                                                            fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                                                            for (int c = 0; c < 4; c++) {
+                                                                if (bc.b_content[c].b_inodo != -1 && strncmp(ficheros[0].c_str(),bc.b_content[c].b_name,12) == 0) {
+                                                                    fseek(archivo, bc.b_content[c].b_inodo, SEEK_SET);
+                                                                    fread(&tiAux, sizeof(TablaInodo), 1, archivo);
+                                                                    bool escritura, lectura;
+                                                                    this->verificarPermisos(tiAux,escritura,lectura);
+
+                                                                    if(escritura) {
+                                                                        vector<string> ficherosD = this->split(destino, '/');
+                                                                        if(this->buscarficheroMove(ficherosD,sb,inicioSB,sb.s_inode_start,archivo,bc.b_content[c].b_inodo,ficheros[0])){}
+                                                                        tiAux.i_mtime = time(nullptr);
+                                                                        fseek(archivo, bc.b_content[c].b_inodo, SEEK_SET);
+                                                                        fwrite(&tiAux, sizeof(TablaInodo), 1, archivo);
+
+                                                                        for(int v = 0 ; v < 12; v++){ bc.b_content[c].b_name[v] = vacio; };
+                                                                        bc.b_content[c].b_inodo = -1;
+                                                                        fseek(archivo, bap2.b_pointers[l], SEEK_SET);
+                                                                        fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                                                                        cout << "Proceso Finalizado con Exito" << endl << endl;
+                                                                    }else { cout << "El usuario no posee permisos de escritura en la carpeta/archivo" << endl << endl; }
+                                                                    goto t0;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        cout << "Ruta no encontrada" << endl << endl;
+                    }
+
+                    t0:
+                    fseek(archivo, ubicacion, SEEK_SET);
+                    fwrite(&ti, sizeof(TablaInodo), 1, archivo);
+                }
+            }
+
+            fclose(archivo);
+        } else {
+            listaMount->eliminar(nodo->idCompleto);
+            cout << "No fue posible encontrar el disco de la particion" << endl << endl;
+            return;
+        }
+    }
+}
+
+bool GestorArchivos::buscarficheroMove(vector<string> &ficheros, SuperBloque &sb, int inicioSB, int inicioInodo,
+                                       FILE *archivo, int inicioMove, string nombreMove) {
+    TablaInodo ti;
+
+    //Obtener Inodo
+    fseek(archivo, inicioInodo, SEEK_SET);
+    fread(&ti, sizeof(TablaInodo), 1, archivo);
+
+    if (ficheros.size() > 0) {
+        if (ti.i_type == '0') {
+            string fichero = ficheros[0];
+            ficheros.erase(ficheros.begin());
+            int ubicacion = this->buscarEnCarpeta(ti, inicioInodo, archivo, fichero);
+
+            if (ubicacion != -1) {
+                return this->buscarficheroMove(ficheros,sb,inicioSB,ubicacion,archivo,inicioMove,nombreMove);
+
+            } else { cout << "No se encontro el fichero " << fichero << endl << endl; return false; }
+        } else { cout << "El inodo no corresponde a una carpeta" << endl << endl; return false; }
+    }
+    else {
+        if (ti.i_type == '0') {
+            return this->buscarEspacio(ti,inicioInodo,sb,inicioSB,archivo,inicioMove,nombreMove);
+        } else { cout << "El inodo no corresponde a una carpeta" << endl << endl; return false; }
+    }
+}
+
+bool GestorArchivos::buscarEspacio(TablaInodo &ti, int inicioInodo, SuperBloque &sb, int inicioSB, FILE *archivo, int inicioMove, string nombreMove) {
+    BloqueCarpeta bc;
+    BloqueApuntadores bap, bap1, bap2;
+    bool bandera = true, banderaE = false;
+    char caracter = '1';
+    for (int i = 0; i <= 11; i++) {
+        if (bandera) {
+            if (ti.i_block[i] != -1) {
+                fseek(archivo, ti.i_block[i], SEEK_SET);
+                fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                for (int j = 0; j < 4; j++) {
+                    if (bc.b_content[j].b_inodo == -1 && bandera) {
+                        strcpy(bc.b_content[j].b_name, nombreMove.c_str());
+                        bc.b_content[j].b_inodo = inicioMove;
+                        bandera = false;
+                    }
+                }
+
+                fseek(archivo, ti.i_block[i], SEEK_SET);
+                fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+            }
+            else if(bandera){
+                if(sb.s_free_blocks_count > 1) {
+                    //Bloque carpeta
+                    sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                    ti.i_block[i] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueCarpeta));
+                    fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+                    fwrite(&caracter, sizeof(caracter), 1, archivo);
+                    sb.s_free_blocks_count--;
+
+                    bc.b_content[0].b_inodo = inicioMove;
+                    strcpy(bc.b_content[0].b_name, nombreMove.c_str());
+                    for (int j = 1; j < 4; j++) {
+                        bc.b_content[j].b_inodo = -1;
+                        strcpy(bc.b_content[j].b_name, "");
+                    }
+
+                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                    fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                    bandera = false;
+                }
+                else {
+                    cout << "No es posible crear mas inodos y/o bloques"
+                         << endl << endl;
+                    bandera = false;
+                    banderaE = true;
+                    break;
+                }
+            }
+        }
+        else { break; }
+    }
+
+    if(ti.i_block[12] != -1 && bandera){
+        fseek(archivo, ti.i_block[12], SEEK_SET);
+        fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+        for(int i = 0; i < 16; i++){
+            if (bandera) {
+                if (bap.b_pointers[i] != -1) {
+                    fseek(archivo, bap.b_pointers[i], SEEK_SET);
+                    fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                    for (int j = 0; j < 4; j++) {
+                        if (bc.b_content[j].b_inodo == -1 && bandera) {
+                            strcpy(bc.b_content[j].b_name, nombreMove.c_str());
+                            bc.b_content[j].b_inodo = inicioMove;
+                            bandera = false;
+                        }
+                    }
+
+                    fseek(archivo, bap.b_pointers[i], SEEK_SET);
+                    fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                }
+                else if(bandera){
+                    if(sb.s_free_blocks_count > 0) {
+                        sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                        bap.b_pointers[i] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueCarpeta));
+                        fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+                        fwrite(&caracter, sizeof(caracter), 1, archivo);
+                        sb.s_free_blocks_count--;
+
+                        bc.b_content[0].b_inodo = inicioMove;
+                        strcpy(bc.b_content[0].b_name, nombreMove.c_str());
+                        for (int j = 1; j < 4; j++) {
+                            bc.b_content[j].b_inodo = -1;
+                            strcpy(bc.b_content[j].b_name, "");
+                        }
+
+                        fseek(archivo, bap.b_pointers[i], SEEK_SET);
+                        fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                        bandera = false;
+                    }
+                    else {
+                        cout << "No es posible crear mas inodos y/o bloques"
+                             << endl << endl;
+                        bandera = false;
+                        banderaE = true;
+                        break;
+                    }
+                }
+            }
+            else { break; }
+        }
+
+        fseek(archivo, ti.i_block[12], SEEK_SET);
+        fwrite(&bap, sizeof(BloqueApuntadores), 1, archivo);
+    }
+    else if(ti.i_block[12] == -1 && bandera){
+        if(sb.s_free_blocks_count > 1) {
+            //Bloque apuntador
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            ti.i_block[12] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+            fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+            fwrite(&caracter, sizeof(caracter), 1, archivo);
+            sb.s_free_blocks_count--;
+
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            bap.b_pointers[0] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+            for (int i = 1; i < 16; i++) { bap.b_pointers[i] = -1; }
+
+            fseek(archivo, ti.i_block[12], SEEK_SET);
+            fwrite(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+            //Bloque Carpeta
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+            fwrite(&caracter, sizeof(caracter), 1, archivo);
+            sb.s_free_blocks_count--;
+
+            bc.b_content[0].b_inodo = inicioMove;
+            strcpy(bc.b_content[0].b_name, nombreMove.c_str());
+            for (int j = 1; j < 4; j++) {
+                bc.b_content[j].b_inodo = -1;
+                strcpy(bc.b_content[j].b_name, "");
+            }
+
+            fseek(archivo, bap.b_pointers[0], SEEK_SET);
+            fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+            bandera = false;
+        }
+        else {
+            cout << "No es posible crear mas inodos y/o bloques"
+                 << endl << endl;
+            bandera = false;
+            banderaE = true;
+        }
+    }
+
+    if(ti.i_block[13] != -1 && bandera){
+        fseek(archivo, ti.i_block[13], SEEK_SET);
+        fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+        for(int i = 0; i < 16; i++){
+            if (bandera) {
+                if (bap.b_pointers[i] != -1) {
+                    fseek(archivo, bap.b_pointers[i], SEEK_SET);
+                    fread(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+                    for(int j = 0; j < 16; j++){
+                        if (bandera) {
+                            if (bap1.b_pointers[j] != -1) {
+                                fseek(archivo, bap1.b_pointers[j], SEEK_SET);
+                                fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                                for (int k = 0; k < 4; k++) {
+                                    if (bc.b_content[k].b_inodo == -1 && bandera) {
+                                        strcpy(bc.b_content[k].b_name, nombreMove.c_str());
+                                        bc.b_content[k].b_inodo = inicioMove;
+                                        bandera = false;
+                                    }
+                                }
+
+                                fseek(archivo, bap1.b_pointers[j], SEEK_SET);
+                                fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                            }
+                            else if(bandera){
+                                if(sb.s_free_blocks_count > 0) {
+                                    sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                                    bap1.b_pointers[j] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueCarpeta));
+                                    fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+                                    fwrite(&caracter, sizeof(caracter), 1, archivo);
+                                    sb.s_free_blocks_count--;
+
+                                    bc.b_content[0].b_inodo = inicioMove;
+                                    strcpy(bc.b_content[0].b_name, nombreMove.c_str());
+                                    for (int k = 1; k < 4; k++) {
+                                        bc.b_content[k].b_inodo = -1;
+                                        strcpy(bc.b_content[k].b_name, "");
+                                    }
+
+                                    fseek(archivo, bap1.b_pointers[j], SEEK_SET);
+                                    fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                                }
+                                else {
+                                    cout << "No es posible crear mas inodos y/o bloques"
+                                         << endl << endl;
+                                    bandera = false;
+                                    break;
+                                }
+                            }
+                        }
+                        else { break; }
+                    }
+
+                    fseek(archivo, bap.b_pointers[i], SEEK_SET);
+                    fread(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+                }
+                else if(bandera){
+                    if(sb.s_free_blocks_count > 1) {
+                        sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                        bap.b_pointers[i] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+                        fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+                        fwrite(&caracter, sizeof(caracter), 1, archivo);
+                        sb.s_free_blocks_count--;
+
+                        sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                        bap1.b_pointers[0] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+                        for (int j = 1; j < 16; j++) { bap1.b_pointers[j] = -1; }
+
+                        fseek(archivo, bap.b_pointers[i], SEEK_SET);
+                        fwrite(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+                        sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                        fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+                        fwrite(&caracter, sizeof(caracter), 1, archivo);
+                        sb.s_free_blocks_count--;
+
+                        bc.b_content[0].b_inodo = inicioMove;
+                        strcpy(bc.b_content[0].b_name, nombreMove.c_str());
+                        for (int j = 1; j < 4; j++) {
+                            bc.b_content[j].b_inodo = -1;
+                            strcpy(bc.b_content[j].b_name, "");
+                        }
+
+                        fseek(archivo, bap1.b_pointers[0], SEEK_SET);
+                        fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                        bandera = false;
+                    }
+                    else {
+                        cout << "No es posible crear mas inodos y/o bloques"
+                             << endl << endl;
+                        bandera = false;
+                        banderaE = true;
+                        break;
+                    }
+                }
+            }
+            else { break; }
+        }
+
+        fseek(archivo, ti.i_block[13], SEEK_SET);
+        fwrite(&bap, sizeof(BloqueApuntadores), 1, archivo);
+    }
+    else if(ti.i_block[13] == -1 && bandera){
+        if(sb.s_free_blocks_count > 2) {
+            //Bloque apuntador
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            ti.i_block[13] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+            fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+            fwrite(&caracter, sizeof(caracter), 1, archivo);
+            sb.s_free_blocks_count--;
+
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            bap.b_pointers[0] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+            for (int i = 1; i < 16; i++) { bap.b_pointers[i] = -1; }
+
+            fseek(archivo, ti.i_block[13], SEEK_SET);
+            fwrite(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+            //Bloque apuntador 2
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+            fwrite(&caracter, sizeof(caracter), 1, archivo);
+            sb.s_free_blocks_count--;
+
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            bap1.b_pointers[0] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+            for (int i = 1; i < 16; i++) { bap1.b_pointers[i] = -1; }
+
+            fseek(archivo, bap.b_pointers[0], SEEK_SET);
+            fwrite(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+            //Bloque Carpeta
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+            fwrite(&caracter, sizeof(caracter), 1, archivo);
+            sb.s_free_blocks_count--;
+
+            sb.s_first_ino = this->buscarBM_i(sb, archivo);
+            bc.b_content[0].b_inodo = inicioMove;
+            strcpy(bc.b_content[0].b_name, nombreMove.c_str());
+            for (int j = 1; j < 4; j++) {
+                bc.b_content[j].b_inodo = -1;
+                strcpy(bc.b_content[j].b_name, "");
+            }
+
+            fseek(archivo, bap1.b_pointers[0], SEEK_SET);
+            fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+            bandera = false;
+        }
+        else {
+            cout << "No es posible crear mas inodos y/o bloques"
+                 << endl << endl;
+            bandera = false;
+            banderaE = true;
+        }
+    }
+
+    if(ti.i_block[14] != -1 &&  bandera){
+        fseek(archivo, ti.i_block[14], SEEK_SET);
+        fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+        for(int a = 0; a < 16; a++){
+            if (bandera) {
+                if (bap.b_pointers[a] != -1) {
+                    fseek(archivo, bap.b_pointers[a], SEEK_SET);
+                    fread(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+                    for(int i = 0; i < 16; i++){
+                        if (bandera) {
+                            if (bap1.b_pointers[i] != -1) {
+                                fseek(archivo, bap1.b_pointers[i], SEEK_SET);
+                                fread(&bap2, sizeof(BloqueApuntadores), 1, archivo);
+
+                                for(int j = 0; j < 16; j++){
+                                    if (bandera) {
+                                        if (bap2.b_pointers[j] != -1) {
+                                            fseek(archivo, bap2.b_pointers[j], SEEK_SET);
+                                            fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                                            for (int k = 0; k < 4; k++) {
+                                                if (bc.b_content[k].b_inodo == -1 && bandera) {
+                                                    sb.s_first_ino = this->buscarBM_i(sb, archivo);
+                                                    strcpy(bc.b_content[k].b_name, nombreMove.c_str());
+                                                    bc.b_content[k].b_inodo = inicioMove;
+                                                    bandera = false;
+                                                }
+                                            }
+
+                                            fseek(archivo, bap2.b_pointers[j], SEEK_SET);
+                                            fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                                        }
+                                        else if(bandera){
+                                            if(sb.s_free_blocks_count > 0) {
+                                                sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                                                bap2.b_pointers[j] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueCarpeta));
+                                                fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+                                                fwrite(&caracter, sizeof(caracter), 1, archivo);
+                                                sb.s_free_blocks_count--;
+
+                                                bc.b_content[0].b_inodo = inicioMove;
+                                                strcpy(bc.b_content[0].b_name, nombreMove.c_str());
+                                                for (int k = 1; k < 4; k++) {
+                                                    bc.b_content[k].b_inodo = -1;
+                                                    strcpy(bc.b_content[k].b_name, "");
+                                                }
+
+                                                fseek(archivo, bap2.b_pointers[j], SEEK_SET);
+                                                fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                                                bandera = false;
+                                            }
+                                            else {
+                                                cout << "No es posible crear mas inodos y/o bloques"
+                                                     << endl << endl;
+                                                bandera = false;
+                                                banderaE = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    else { break; }
+                                }
+
+                                fseek(archivo, bap1.b_pointers[i], SEEK_SET);
+                                fwrite(&bap2, sizeof(BloqueApuntadores), 1, archivo);
+                            }
+                            else if(bandera){
+                                if(sb.s_free_blocks_count > 1) {
+                                    sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                                    bap1.b_pointers[i] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+                                    fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+                                    fwrite(&caracter, sizeof(caracter), 1, archivo);
+                                    sb.s_free_blocks_count--;
+
+                                    sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                                    bap2.b_pointers[0] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+                                    for (int j = 1; j < 16; j++) { bap2.b_pointers[j] = -1; }
+
+                                    fseek(archivo, bap1.b_pointers[i], SEEK_SET);
+                                    fwrite(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+                                    sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                                    fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+                                    fwrite(&caracter, sizeof(caracter), 1, archivo);
+                                    sb.s_free_blocks_count--;
+
+                                    bc.b_content[0].b_inodo = inicioMove;
+                                    strcpy(bc.b_content[0].b_name, nombreMove.c_str());
+                                    for (int j = 1; j < 4; j++) {
+                                        bc.b_content[j].b_inodo = -1;
+                                        strcpy(bc.b_content[j].b_name, "");
+                                    }
+
+                                    fseek(archivo, bap2.b_pointers[0], SEEK_SET);
+                                    fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                                    bandera = false;
+                                }
+                                else {
+                                    cout << "No es posible crear mas inodos y/o bloques"
+                                         << endl << endl;
+                                    bandera = false;
+                                    banderaE = true;
+                                    break;
+                                }
+                            }
+                        }
+                        else { break; }
+                    }
+
+                    fseek(archivo, bap.b_pointers[a], SEEK_SET);
+                    fwrite(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+                }
+                else if(bandera){
+                    if(sb.s_free_blocks_count > 2) {
+                        //Bloque apuntador
+                        sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                        bap.b_pointers[a] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+                        fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+                        fwrite(&caracter, sizeof(caracter), 1, archivo);
+                        sb.s_free_blocks_count--;
+
+                        sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                        bap1.b_pointers[0] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+                        for (int i = 1; i < 16; i++) { bap1.b_pointers[i] = -1; }
+
+                        fseek(archivo, bap.b_pointers[a], SEEK_SET);
+                        fwrite(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+                        //Bloque apuntador 2
+                        sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                        fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+                        fwrite(&caracter, sizeof(caracter), 1, archivo);
+                        sb.s_free_blocks_count--;
+
+                        sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                        bap2.b_pointers[0] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+                        for (int i = 1; i < 16; i++) { bap2.b_pointers[i] = -1; }
+
+                        fseek(archivo, bap.b_pointers[0], SEEK_SET);
+                        fwrite(&bap2, sizeof(BloqueApuntadores), 1, archivo);
+
+                        //Bloque Carpeta
+                        sb.s_first_blo = this->buscarBM_b(sb, archivo);
+                        fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+                        fwrite(&caracter, sizeof(caracter), 1, archivo);
+                        sb.s_free_blocks_count--;
+
+                        bc.b_content[0].b_inodo = inicioMove;
+                        strcpy(bc.b_content[0].b_name, nombreMove.c_str());
+                        for (int j = 1; j < 4; j++) {
+                            bc.b_content[j].b_inodo = -1;
+                            strcpy(bc.b_content[j].b_name, "");
+                        }
+
+                        fseek(archivo, bap2.b_pointers[0], SEEK_SET);
+                        fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+                    }
+                    else {
+                        cout << "No es posible crear mas inodos y/o bloques"
+                             << endl << endl;
+                        bandera = false;
+                        banderaE = true;
+                        break;
+                    }
+                }
+            }
+            else { break; }
+        }
+
+        fseek(archivo, ti.i_block[14], SEEK_SET);
+        fwrite(&bap, sizeof(BloqueApuntadores), 1, archivo);
+    }
+    else if(ti.i_block[14] == -1 && bandera){
+        if(sb.s_free_blocks_count > 3) {
+            //Bloque apuntador
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            ti.i_block[14] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+            fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+            fwrite(&caracter, sizeof(caracter), 1, archivo);
+            sb.s_free_blocks_count--;
+
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            bap.b_pointers[0] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+            for (int i = 1; i < 16; i++) { bap.b_pointers[i] = -1; }
+
+            fseek(archivo, ti.i_block[14], SEEK_SET);
+            fwrite(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+            //Bloque apuntador 2
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+            fwrite(&caracter, sizeof(caracter), 1, archivo);
+            sb.s_free_blocks_count--;
+
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            bap1.b_pointers[0] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+            for (int i = 1; i < 16; i++) { bap1.b_pointers[i] = -1; }
+
+            fseek(archivo, bap.b_pointers[0], SEEK_SET);
+            fwrite(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+            //Bloque apuntador 3
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+            fwrite(&caracter, sizeof(caracter), 1, archivo);
+            sb.s_free_blocks_count--;
+
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            bap2.b_pointers[0] = sb.s_block_start + (sb.s_first_blo * sizeof(BloqueApuntadores));
+            for (int i = 1; i < 16; i++) { bap2.b_pointers[i] = -1; }
+
+            fseek(archivo, bap1.b_pointers[0], SEEK_SET);
+            fwrite(&bap2, sizeof(BloqueApuntadores), 1, archivo);
+
+            //Bloque Carpeta
+            sb.s_first_blo = this->buscarBM_b(sb, archivo);
+            fseek(archivo, sb.s_bm_block_start + sb.s_first_blo, SEEK_SET);
+            fwrite(&caracter, sizeof(caracter), 1, archivo);
+            sb.s_free_blocks_count--;
+
+            bc.b_content[0].b_inodo = inicioMove;
+            strcpy(bc.b_content[0].b_name, nombreMove.c_str());
+            for (int j = 1; j < 4; j++) {
+                bc.b_content[j].b_inodo = -1;
+                strcpy(bc.b_content[j].b_name, "");
+            }
+
+            fseek(archivo, bap2.b_pointers[0], SEEK_SET);
+            fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+            bandera = false;
+        }
+        else {
+            cout << "No es posible crear mas inodos y/o bloques"
+                 << endl << endl;
+            bandera = false;
+            banderaE = true;
+        }
+    }
+
+    if (!bandera && !banderaE) {
+        ti.i_mtime = time(nullptr);
+
+        fseek(archivo, inicioInodo, SEEK_SET);
+        fwrite(&ti, sizeof(TablaInodo), 1, archivo);
+
+        sb.s_first_blo = this->buscarBM_b(sb, archivo);
+        fseek(archivo, inicioSB, SEEK_SET);
+        fwrite(&sb, sizeof(SuperBloque), 1, archivo);
+
+        TablaInodo tiAux;
+        fseek(archivo, inicioMove, SEEK_SET);
+        fread(&tiAux, sizeof(TablaInodo), 1, archivo);
+
+        fseek(archivo, tiAux.i_block[0], SEEK_SET);
+        fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+        bc.b_content[1].b_inodo = inicioInodo;
+
+        fseek(archivo, tiAux.i_block[0], SEEK_SET);
+        fwrite(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+        tiAux.i_mtime = time(nullptr);
+        fseek(archivo, inicioMove, SEEK_SET);
+        fwrite(&tiAux, sizeof(TablaInodo), 1, archivo);
+        return true;
+    }
+
+    else if(bandera){
+        cout << "No fue posible encontrar un espacio disponible en carpeta" << endl << endl;
+    }
+    return false;
+}
+
+
+void GestorArchivos::find(string path, string name) {
+    if (this->usuario->nombreG == "" && this->usuario->nombreU == "") {
+        cout << "No existe una sesion iniciada" << endl << endl;
+        return;
+    }
+    NodoMount *nodo = this->listaMount->buscar(this->usuario->idParticion);
+    if (nodo != NULL) {
+        FILE *archivo = fopen((nodo->fichero + "/" + nodo->nombre_disco).c_str(), "rb+");
+        if (archivo != NULL) {
+            SuperBloque sb;
+            int inicioSB = 0;
+
+            //Particion Primaria
+            if (nodo->part_type == 'P') {
+                MBR mbr;
+                fseek(archivo, 0, SEEK_SET);
+                fread(&mbr, sizeof(MBR), 1, archivo);
+                int i;
+
+                //Verificar la existencia de la particion
+                for (i = 0; i < 4; i++) {
+                    if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0) {
+                        inicioSB = mbr.mbr_partition_[i].part_start;
+                        break;
+                    }
+                }
+
+                //Error de posicion no encontrada
+                if (i == 5) {
+                    listaMount->eliminar(nodo->idCompleto);
+                    cout << "No fue posible encontrar la particion en el disco" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+
+                    //Posicion si Encontrada
+                else {
+                    if (mbr.mbr_partition_[i].part_status != '2') {
+                        cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                        fclose(archivo);
+                        return;
+                    }
+                    //Recuperar la informacion del superbloque
+                    fseek(archivo, mbr.mbr_partition_[i].part_start, SEEK_SET);
+                    fread(&sb, sizeof(SuperBloque), 1, archivo);
+                }
+            }
+
+                //Particiones Logicas
+            else if (nodo->part_type == 'L') {
+                EBR ebr;
+                fseek(archivo, nodo->part_start, SEEK_SET);
+                fread(&ebr, sizeof(EBR), 1, archivo);
+                if (ebr.part_status != '2') {
+                    cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+                inicioSB = nodo->part_start;
+                fread(&sb, sizeof(SuperBloque), 1, archivo);
+            }
+
+            regex expresion(
+                    "(\\/)(([a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ ]+(\\/))*[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ ]+(\\.[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ ]+)?)?");
+            if (!this->verificarPath(path)) {
+                cout << "Ruta en path no valida " << endl << endl;
+            } else {
+                path = path.erase(0, 1);
+                vector<string> ficheros = this->split(path, '/');
+
+                int ubicacion = this->buscarficheroRemove(ficheros, sb, inicioSB, sb.s_inode_start, archivo);
+
+                if(ubicacion != -1){
+                    TablaInodo ti;
+                    fseek(archivo, ubicacion, SEEK_SET);
+                    fread(&ti, sizeof(TablaInodo), 1, archivo);
+
+                    if(ti.i_type == '1'){
+                        cout << "El nombre no correponde a una carpeta" << endl << endl;
+                    }
+                    else if (ti.i_type == '0') {
+                        if(ficheros.size() > 0){
+                            this->buscarEnCarpetaFind(ubicacion,sb,inicioSB,archivo,"/"+ficheros[0],0);
+                        }
+                        else{
+                            this->buscarEnCarpetaFind(ubicacion,sb,inicioSB,archivo,"/",0);
+                        }
+                    }
+                }
+            }
+            cout << endl << endl;
+            fclose(archivo);
+        } else {
+            listaMount->eliminar(nodo->idCompleto);
+            cout << "No fue posible encontrar el disco de la particion" << endl << endl;
+            return;
+        }
+    }
+}
+
+void GestorArchivos::buscarEnCarpetaFind(int inicioInodo, SuperBloque &sb, int inicioSB, FILE *archivo, string nombre, int identacion) {
+    TablaInodo ti;
+    BloqueApuntadores bap, bap1, bap2;
+
+    fseek(archivo, inicioInodo, SEEK_SET);
+    fread(&ti, sizeof(TablaInodo), 1, archivo);
+    string sIdent = "";
+    for (int s = 0; s < identacion; s++){ sIdent += " "; }
+
+    bool escritura, lectura;
+    this->verificarPermisos(ti, escritura, lectura);
+    if (ti.i_type == '1' && lectura) {
+        cout << sIdent << "*" << nombre << endl;
+    }
+    else if (ti.i_type == '0') {
+        cout << sIdent << "-" << nombre << endl;
+        BloqueApuntadores bap, bap1, bap2;
+        BloqueCarpeta bc;
+        TablaInodo tiAux;
+
+        for (int i = 0; i < 15; i++) {
+            if (ti.i_block[i] != -1) {
+                if (i == 0) {
+                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                    fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                    for (int c = 2; c < 4; c++) {
+                        if (bc.b_content[c].b_inodo != -1) {
+                            string sigNombre = "";
+                            sigNombre += bc.b_content[c].b_name;
+                            this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre, identacion+1);
+                        }
+                    }
+                } else if (i < 12) {
+                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                    fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                    for (int c = 0; c < 4; c++) {
+                        if (bc.b_content[c].b_inodo != -1) {
+                            string sigNombre = "";
+                            sigNombre += bc.b_content[c].b_name;
+                            this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre,identacion+1);
+                        }
+                    }
+                } else if (i == 12) {
+                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                    fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+                    for (int j = 0; j < 16; j++) {
+                        if (bap.b_pointers[j] != -1) {
+                            fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                            fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                            for (int c = 0; c < 4; c++) {
+                                if (bc.b_content[c].b_inodo != -1) {
+                                    string sigNombre = "";
+                                    sigNombre += bc.b_content[c].b_name;
+                                    this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre,identacion+1);
+                                }
+                            }
+                        }
+                    }
+                } else if (i == 13) {
+                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                    fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+                    for (int j = 0; j < 16; j++) {
+                        if (bap.b_pointers[j] != -1) {
+                            fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                            fread(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+                            for (int k = 0; k < 16; k++) {
+                                if (bap1.b_pointers[k] != -1) {
+                                    fseek(archivo, bap1.b_pointers[k], SEEK_SET);
+                                    fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                                    for (int c = 0; c < 4; c++) {
+                                        if (bc.b_content[c].b_inodo != -1) {
+                                            string sigNombre = "";
+                                            sigNombre += bc.b_content[c].b_name;
+                                            this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre,identacion+1);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (i == 14) {
+                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                    fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+                    for (int j = 0; j < 16; j++) {
+                        if (bap.b_pointers[j] != -1) {
+                            fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                            fread(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+                            for (int k = 0; k < 16; k++) {
+                                if (bap1.b_pointers[k] != -1) {
+                                    fseek(archivo, bap1.b_pointers[k], SEEK_SET);
+                                    fread(&bap2, sizeof(BloqueApuntadores), 1, archivo);
+
+                                    for (int l = 0; l < 16; l++) {
+                                        if (bap2.b_pointers[l] != -1) {
+                                            fseek(archivo, bap2.b_pointers[l], SEEK_SET);
+                                            fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                                            for (int c = 0; c < 4; c++) {
+                                                if (bc.b_content[c].b_inodo != -1) {
+                                                    string sigNombre = "";
+                                                    sigNombre += bc.b_content[c].b_name;
+                                                    this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre,identacion+1);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+void GestorArchivos::chown(string path, string usr, bool r) {
+    if (this->usuario->nombreG == "" && this->usuario->nombreU == "") {
+        cout << "No existe una sesion iniciada" << endl << endl;
+        return;
+    }
+    NodoMount *nodo = this->listaMount->buscar(this->usuario->idParticion);
+    if (nodo != NULL) {
+        FILE *archivo = fopen((nodo->fichero + "/" + nodo->nombre_disco).c_str(), "rb+");
+        if (archivo != NULL) {
+            SuperBloque sb;
+            int inicioSB = 0;
+
+            //Particion Primaria
+            if (nodo->part_type == 'P') {
+                MBR mbr;
+                fseek(archivo, 0, SEEK_SET);
+                fread(&mbr, sizeof(MBR), 1, archivo);
+                int i;
+
+                //Verificar la existencia de la particion
+                for (i = 0; i < 4; i++) {
+                    if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0) {
+                        inicioSB = mbr.mbr_partition_[i].part_start;
+                        break;
+                    }
+                }
+
+                //Error de posicion no encontrada
+                if (i == 5) {
+                    listaMount->eliminar(nodo->idCompleto);
+                    cout << "No fue posible encontrar la particion en el disco" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+
+                    //Posicion si Encontrada
+                else {
+                    if (mbr.mbr_partition_[i].part_status != '2') {
+                        cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                        fclose(archivo);
+                        return;
+                    }
+                    //Recuperar la informacion del superbloque
+                    fseek(archivo, mbr.mbr_partition_[i].part_start, SEEK_SET);
+                    fread(&sb, sizeof(SuperBloque), 1, archivo);
+                }
+            }
+
+                //Particiones Logicas
+            else if (nodo->part_type == 'L') {
+                EBR ebr;
+                fseek(archivo, nodo->part_start, SEEK_SET);
+                fread(&ebr, sizeof(EBR), 1, archivo);
+                if (ebr.part_status != '2') {
+                    cout << "No se ha aplicado el comando mkfs a la particion" << endl << endl;
+                    fclose(archivo);
+                    return;
+                }
+                inicioSB = nodo->part_start;
+                fread(&sb, sizeof(SuperBloque), 1, archivo);
+            }
+
+            string utxt = this->getContentF(sb.s_inode_start + sizeof(TablaInodo), archivo);
+            vector<string> grupos;
+            vector<string> usuarios;
+            this->obtenerUG(utxt, usuarios, grupos);
+
+            int u = -1, g = -1;
+            string sg = "";
+
+            for(int i = 0; i < usuarios.size(); i++){
+                vector<string> datos = this->split(usuarios[i],',');
+                if(datos[0] != "0" && datos[3] == usr){
+                    u = stoi(datos[0]);
+                    sg = datos[2];
+                    break;
+                }
+            }
+
+            for(int i = 0; i < grupos.size(); i++){
+                vector<string> datos = this->split(grupos[i],',');
+                if(datos[0] != "0" && datos[2] == sg){
+                    g = stoi(datos[0]);
+                    break;
+                }
+            }
+
+            if(u != -1 && g != -1) {
+                regex expresion(
+                        "(\\/)(([a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ ]+(\\/))*[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ ]+(\\.[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ ]+)?)?");
+                if (!this->verificarPath(path)) {
+                    cout << "Ruta en path no valida " << endl << endl;
+                } else {
+                    path = path.erase(0, 1);
+                    vector<string> ficheros = this->split(path, '/');
+
+                    int ubicacion = this->buscarficheroRemove(ficheros, sb, inicioSB, sb.s_inode_start, archivo);
+
+                    if (ubicacion != -1) {
+                        TablaInodo ti;
+                        fseek(archivo,ubicacion,SEEK_SET);
+                        fread(&ti, sizeof(TablaInodo),1,archivo);
+                        if(ti.i_type == '0') {
+                            ubicacion = this->buscarEnCarpeta(ti,ubicacion,archivo,ficheros[0]);
+                            if(ubicacion != -1) {
+                                this->buscarEnCarpetaChown(ubicacion, sb, inicioSB, archivo, u, g, r);
+                                cout << "Proceso finalizado" << endl << endl;
+                            }else{ cout << "Fichero no Encontrado" << endl << endl;  }
+                        }else { cout << "El directorio no correponde a una carpeta" << endl << endl; }
+                    }
+                }
+            } else{ cout << "El usuario no existe" << endl << endl; }
+            fclose(archivo);
+        } else {
+            listaMount->eliminar(nodo->idCompleto);
+            cout << "No fue posible encontrar el disco de la particion" << endl << endl;
+            return;
+        }
+    }
+}
+
+void GestorArchivos::buscarEnCarpetaChown(int inicioInodo, SuperBloque &sb, int inicioSB, FILE *archivo, int u, int g, bool r) {
+    TablaInodo ti;
+    BloqueApuntadores bap, bap1, bap2;
+
+    fseek(archivo, inicioInodo, SEEK_SET);
+    fread(&ti, sizeof(TablaInodo), 1, archivo);
+
+    bool escritura, lectura;
+    this->verificarPermisos(ti, escritura, lectura);
+
+    if (ti.i_type == '0' && lectura) {
+        BloqueApuntadores bap, bap1, bap2;
+        BloqueCarpeta bc;
+        TablaInodo tiAux;
+
+        for (int i = 0; i < 15; i++) {
+            if (ti.i_block[i] != -1) {
+                if (i == 0) {
+                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                    fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                    for (int c = 2; c < 4; c++) {
+                        if (bc.b_content[c].b_inodo != -1 && r) {
+                            this->buscarEnCarpetaChown(bc.b_content[c].b_inodo, sb, inicioSB, archivo,u,g,r);
+                        }
+                    }
+                } else if (i < 12) {
+                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                    fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                    for (int c = 0; c < 4; c++) {
+                        if (bc.b_content[c].b_inodo != -1 && r) {
+                            this->buscarEnCarpetaChown(bc.b_content[c].b_inodo, sb, inicioSB, archivo,u,g,r);
+                        }
+                    }
+                } else if (i == 12) {
+                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                    fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+                    for (int j = 0; j < 16; j++) {
+                        if (bap.b_pointers[j] != -1) {
+                            fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                            fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                            for (int c = 0; c < 4; c++) {
+                                if (bc.b_content[c].b_inodo != -1 && r) {
+                                    this->buscarEnCarpetaChown(bc.b_content[c].b_inodo, sb, inicioSB, archivo,u,g, r);
+                                }
+                            }
+                        }
+                    }
+                } else if (i == 13) {
+                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                    fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+                    for (int j = 0; j < 16; j++) {
+                        if (bap.b_pointers[j] != -1) {
+                            fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                            fread(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+                            for (int k = 0; k < 16; k++) {
+                                if (bap1.b_pointers[k] != -1) {
+                                    fseek(archivo, bap1.b_pointers[k], SEEK_SET);
+                                    fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                                    for (int c = 0; c < 4; c++) {
+                                        if (bc.b_content[c].b_inodo != -1 && r) {
+                                            this->buscarEnCarpetaChown(bc.b_content[c].b_inodo, sb, inicioSB, archivo,u,g,r);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (i == 14) {
+                    fseek(archivo, ti.i_block[i], SEEK_SET);
+                    fread(&bap, sizeof(BloqueApuntadores), 1, archivo);
+
+                    for (int j = 0; j < 16; j++) {
+                        if (bap.b_pointers[j] != -1) {
+                            fseek(archivo, bap.b_pointers[j], SEEK_SET);
+                            fread(&bap1, sizeof(BloqueApuntadores), 1, archivo);
+
+                            for (int k = 0; k < 16; k++) {
+                                if (bap1.b_pointers[k] != -1) {
+                                    fseek(archivo, bap1.b_pointers[k], SEEK_SET);
+                                    fread(&bap2, sizeof(BloqueApuntadores), 1, archivo);
+
+                                    for (int l = 0; l < 16; l++) {
+                                        if (bap2.b_pointers[l] != -1) {
+                                            fseek(archivo, bap2.b_pointers[l], SEEK_SET);
+                                            fread(&bc, sizeof(BloqueCarpeta), 1, archivo);
+
+                                            for (int c = 0; c < 4; c++) {
+                                                if (bc.b_content[c].b_inodo != -1 && r) {
+                                                    this->buscarEnCarpetaChown(bc.b_content[c].b_inodo, sb, inicioSB, archivo,u,g,r);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if((ti.i_gid == this->usuario->idG && ti.i_uid == this->usuario->idU) || (this->usuario->nombreU == "root" && this->usuario->nombreG == "root")){
+        ti.i_gid = g;
+        ti.i_uid = u;
+    }
+
+    fseek(archivo, inicioInodo, SEEK_SET);
+    fwrite(&ti, sizeof(TablaInodo), 1, archivo);
+}
+
+
 //Obtener la informacion de un archivo en disco
 string GestorArchivos::getContentF(int inicioInodo, FILE *archivo) {
     TablaInodo ti;

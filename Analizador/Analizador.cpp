@@ -917,6 +917,7 @@ void Analizador::analizar() {
 
         string path_param = ">path=";
         string destino_param = ">destino=";
+        string path = "", destino= "";
 
         while(this->cadena.length() > 0) {
             if (this->verificarComentario(this->cadena)){
@@ -925,12 +926,12 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro PATH
             else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
-                this->cadena = this->trim(this->cadena.erase(0,path_param.length()));
+                this->obtenerDatoParamC(path,path_param.length());
             }
 
                 //Reconocer el parametro DESTINO
             else if (strncmp(this->toLower(this->cadena).c_str(), destino_param.c_str(), destino_param.length()) == 0) {
-                this->cadena = this->trim(this->cadena.erase(0,destino_param.length()));
+                this->obtenerDatoParamC(destino,destino_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -940,6 +941,8 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        cout << "Aqui deberia ir el copy... si lo hubiera hecho :'v" << endl << endl;
     }
 
         //Comando Move
@@ -987,10 +990,12 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro PATH
             else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatoParamC(path, path_param.length());
             }
 
                 //Reconocer el parametro NAME
             else if (strncmp(this->toLower(this->cadena).c_str(), name_param.c_str(), name_param.length()) == 0) {
+                this->obtenerDatoParamC(name, name_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -1000,6 +1005,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        GestorArchivos * gestor = new GestorArchivos(this->listaMount, this->usuario);
+        gestor->find(path, name);
     }
 
         //Comando Chown
@@ -1019,14 +1027,18 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro PATH
             else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatoParamC(path, path_param.length());
             }
 
                 //Reconocer el parametro R
             else if (strncmp(this->toLower(this->cadena).c_str(), r_param.c_str(), r_param.length()) == 0) {
+                r = true;
+                this->cadena = this->trim(this->cadena.erase(0,r_param.length()));
             }
 
                 //Reconocer el parametro USR
             else if (strncmp(this->toLower(this->cadena).c_str(), usr_param.c_str(), usr_param.length()) == 0) {
+                this->obtenerDatoParamC(usr, usr_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -1036,6 +1048,9 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        GestorArchivos * gestor = new GestorArchivos(this->listaMount,this->usuario);
+        gestor->chown(path,usr,r);
     }
 
         //Comando Chgrp
@@ -1099,6 +1114,7 @@ void Analizador::analizar() {
         this->cadena = this->trim(this->cadena.erase(0, 8));
 
         string id_param = ">id=";
+        string id = "";
 
         while(this->cadena.length() > 0) {
             if (this->verificarComentario(this->cadena)){
@@ -1107,7 +1123,7 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro Id
             else if (strncmp(this->toLower(this->cadena).c_str(), id_param.c_str(), id_param.length()) == 0) {
-                //this->obtenerDatoParamC(fichero, 5);
+                this->obtenerDatoParamC(id, id_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -1117,6 +1133,8 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        cout << "El para que cosa de quien?" << endl << endl;
     }
 
         //Comando Loss
@@ -1124,6 +1142,7 @@ void Analizador::analizar() {
         this->cadena = this->trim(this->cadena.erase(0, 4));
 
         string id_param = ">id=";
+        string id = "";
 
         while(this->cadena.length() > 0) {
             if (this->verificarComentario(this->cadena)){
@@ -1132,7 +1151,7 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro Id
             else if (strncmp(this->toLower(this->cadena).c_str(), id_param.c_str(), id_param.length()) == 0) {
-                //this->obtenerDatoParamC(fichero, 5);
+                this->obtenerDatoParamC(id, id_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -1142,6 +1161,8 @@ void Analizador::analizar() {
                 return;
             }
         }
+
+        cout << "No sale :'v" << endl << endl;
     }
 
         //Comando Exec
