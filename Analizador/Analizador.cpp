@@ -19,7 +19,7 @@ using namespace std;
 
 Analizador::Analizador(std::string cadena, ListaMount *listamount, Usuario *usuario) {
     this->cadena = this->trim(cadena);
-    this->listaMount = listaMount;
+    this->listaMount = listamount;
     this->usuario = usuario;
 }
 
@@ -960,10 +960,12 @@ void Analizador::analizar() {
 
                 //Reconocer el parametro PATH
             else if (strncmp(this->toLower(this->cadena).c_str(), path_param.c_str(), path_param.length()) == 0) {
+                this->obtenerDatoParamC(path, path_param.length());
             }
 
                 //Reconocer el parametro DESTINO
             else if (strncmp(this->toLower(this->cadena).c_str(), destino_param.c_str(), destino_param.length()) == 0) {
+                this->obtenerDatoParamC(destino, destino_param.length());
             }
 
                 //No se pudo reconocer el tipo de parametro
@@ -973,6 +975,8 @@ void Analizador::analizar() {
                 return;
             }
         }
+        GestorArchivos *gestor = new GestorArchivos(this->listaMount,this->usuario);
+        gestor->move(path,destino);
     }
 
         //Comando Find
@@ -1201,7 +1205,7 @@ void Analizador::analizar() {
                     string comandoS = comando;
                     comandoS = this->trim(comandoS);
                     if (comandoS.length() != 0) {
-                        Analizador *analizador = new Analizador(comando, listaMount, usuario);
+                        Analizador *analizador = new Analizador(comando, this->listaMount, this->usuario);
                         analizador->analizar();
                     }
                 }

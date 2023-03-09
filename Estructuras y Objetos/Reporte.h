@@ -41,6 +41,11 @@ public:
     void blockCarpeta(int posicion, FILE *archivoDisco, FILE *archivoReporte);
     void blockArchivo(int posicion, FILE *archivoDisco, FILE *archivoReporte);
     void blockApuntador(int posicion, FILE *archivoDisco, FILE *archivoReporte);
+    void reporteLs();
+    string getGrupo(int id,SuperBloque &sb, FILE *file);
+    string getUsuario(int id,SuperBloque &sb, FILE *file);
+    string getPermiso(int permiso);
+    void lsInodo(int pos,string name1,SuperBloque &sb, FILE *archivoDisco, FILE *archivoReporte);
     void reporteFile();
     void reporteTree();
     void treeInodo(int posicion, int noInodo, FILE *archivoDisco, FILE *archivoReporte, string &conexiones);
@@ -51,6 +56,7 @@ public:
     string getContentF(int inicioInodo, FILE *archivo);
     int buscarFichero(vector<string> &ficheros, SuperBloque &sb, int inicioSB, int inicioInodo, FILE *archivo);
     int buscarEnCarpeta(TablaInodo &ti, int inicioInodo, FILE *archivo, string nombre);
+    void reportJournaling();
 };
 
 

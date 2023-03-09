@@ -52,7 +52,7 @@ void Reporte::generarReporte() {
     else if(this->name == "bm_inode"){
         this->reporteBmInode();
     }
-    else if(this->name == "bm_bloc"){
+    else if(this->name == "bm_block"){
         this->reporteBmBlock();
     }
     else if(this->name == "inode"){
@@ -65,9 +65,13 @@ void Reporte::generarReporte() {
         this->reporteTree();
     }
     else if(this->name == "ls"){
+        this->reporteLs();
     }
     else if(this->name == "file"){
         this->reporteFile();
+    }
+    else if(this->name == "journaling"){
+        this->reportJournaling();
     }
 }
 
@@ -1120,6 +1124,297 @@ void Reporte::blockApuntador(int posicion, FILE *archivoDisco, FILE *archivoRepo
     fprintf(archivoReporte,"</table>>]\n");
 }
 
+//Generar Reporte Ls
+void Reporte::reporteLs() {
+    if(verificarRuta(this->fichero_r,this->archivo_r,"[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ]+") && verificarRuta(this->fichero_p,this->archivo_p,"[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ]+")){
+        NodoMount * nodo = this->listaMount->buscar(this->id);
+
+        if (nodo != NULL) {
+            FILE *archivoDisco = fopen((nodo->fichero + "/" + nodo->nombre_disco).c_str(), "rb");
+
+            if (archivoDisco != NULL) {
+                //Creacion de los ficheros y dando permisos
+                string comando = "sudo -S mkdir -p \'" + this->fichero_p + "\'";
+                system(comando.c_str());
+                comando = "sudo -S chmod -R 777  \'" + this->fichero_p + "\'";
+                system(comando.c_str());
+
+                MBR mbr;
+                fread(&mbr, sizeof(MBR), 1, archivoDisco);
+
+                SuperBloque sb;
+                int inicioSB = -1;
+                for (int i = 0; i < 4; i++) {
+                    if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0 &&
+                        nodo->part_type == mbr.mbr_partition_[i].part_type) {
+                        if (mbr.mbr_partition_[i].part_status == '2') {
+                            fseek(archivoDisco, mbr.mbr_partition_[i].part_start, SEEK_SET);
+                            fread(&sb, sizeof(SuperBloque), 1, archivoDisco);
+                            inicioSB = mbr.mbr_partition_[i].part_start;
+                            break;
+                        } else if (mbr.mbr_partition_[i].part_status == '1') {
+                            cout << "No se ha aplicado el comando MKFS a la Particion" << endl << endl;
+                            goto t0;
+                        } else if (mbr.mbr_partition_[i].part_status == '0') {
+                            cout << "No se encontro la Particion en el Disco..." << endl;
+                            cout << "Desmontando la Praticion" << endl << endl;
+                            this->listaMount->eliminar(nodo->idCompleto);
+                            goto t0;
+                        }
+                    } else if (mbr.mbr_partition_[i].part_type == 'E' &&
+                               nodo->part_type == 'L') {
+                        EBR ebr;
+                        fseek(archivoDisco, nodo->part_start, SEEK_SET);
+                        fread(&ebr, sizeof(EBR), 1, archivoDisco);
+
+                        if (strncmp(ebr.part_name, nodo->nombre_particion.c_str(), 16) == 0) {
+                            if (ebr.part_status == '2') {
+                                fseek(archivoDisco, ebr.part_start + sizeof(EBR), SEEK_SET);
+                                fread(&sb, sizeof(SuperBloque), 1, archivoDisco);
+                                inicioSB = ebr.part_start + sizeof(EBR);
+                                break;
+                            } else if (ebr.part_status == '1') {
+                                cout << "No se ha aplicado el comando MKFS a la Particion" << endl << endl;
+                                goto t0;
+                            } else if (ebr.part_status == '0') {
+                                cout << "No se encontro la Particion en el Disco..." << endl;
+                                cout << "Desmontando la Praticion" << endl << endl;
+                                this->listaMount->eliminar(nodo->idCompleto);
+                                goto t0;
+                            }
+                        }
+                    }
+                }
+
+                if(inicioSB != -1){
+                    FILE *archivoReporte = fopen((this->fichero_p + "/reporteLs.dot").c_str(), "w+");
+                    fseek(archivoDisco, sb.s_bm_block_start,SEEK_SET);
+
+                    fprintf(archivoReporte,"digraph G {\n");
+                    fprintf(archivoReporte, "node[shape=none]\n");
+
+
+                    vector<string> ficheros = this->split(this->fichero_r,'/');
+                    if(this->archivo_r != ""){
+                        ficheros.push_back(archivo_r);
+                    }
+                    string nombre = ficheros.size()>0?ficheros[ficheros.size()-1]:"/";
+
+                    int ubicacion = this->buscarFichero(ficheros,sb,inicioSB,sb.s_inode_start,archivoDisco);
+
+                    fprintf(archivoReporte,"start[label=<<table>\n");
+
+                    fprintf(archivoReporte,"<tr>\n");
+                    fprintf(archivoReporte,"<td>Permisos</td>\n");
+                    fprintf(archivoReporte,"<td>Usuario</td>\n");
+                    fprintf(archivoReporte,"<td>Grupo</td>\n");
+                    fprintf(archivoReporte,"<td>Size</td>\n");
+                    fprintf(archivoReporte,"<td>Fecha</td>\n");
+                    fprintf(archivoReporte,"<td>Tipo</td>\n");
+                    fprintf(archivoReporte,"<td>Nombre</td>\n");
+                    fprintf(archivoReporte,"</tr>\n");
+
+                    if(ubicacion != -1) {
+                        this->lsInodo(ubicacion, nombre,sb, archivoDisco,archivoReporte);
+                    }
+                    fprintf(archivoReporte,"</table>>]\n");
+
+
+                    fprintf(archivoReporte,"}");
+                    fclose(archivoReporte);
+                    comando = "sudo -S dot -T" + this->obtenerExtension(this->archivo_p) + " " + this->fichero_p +
+                              "/reporteLs.dot -o \"" + this->fichero_p + "/" + this->archivo_p + "\"";
+                    system(comando.c_str());
+                    cout << "Reporte de Ls generado con Exito" << endl << endl;
+                } else{
+                    cout << "La Particion no exite dentro del disco..." << endl << endl;
+                    cout << "Desmontando la particion" << endl << endl;
+                    this->listaMount->eliminar(nodo->id);
+                }
+                t0:
+                fclose(archivoDisco);
+            } else {
+                cout << "No fue posible encontrar el Disco... " << endl;
+                cout << "Desmontando particion" << endl << endl;
+                this->listaMount->eliminar(this->id);
+            }
+        }
+    }
+}
+
+void Reporte::lsInodo(int pos,string name1,SuperBloque &sb, FILE *archivoDisco, FILE *archivoReporte) {
+    TablaInodo inodo;
+    fseek(archivoDisco,pos,SEEK_SET);
+    fread(&inodo, sizeof(TablaInodo),1,archivoDisco);
+
+    fprintf(archivoReporte,"<tr>\n");
+    fprintf(archivoReporte,("<td>"+this->getPermiso(inodo.i_perm)+"</td>\n").c_str());
+    fprintf(archivoReporte,("<td>"+ this->getUsuario(inodo.i_uid,sb,archivoDisco)+"</td>\n").c_str());
+    fprintf(archivoReporte,("<td>"+ this->getGrupo(inodo.i_gid,sb,archivoDisco)+"</td>\n").c_str());
+    fprintf(archivoReporte,("<td>"+to_string(inodo.i_s)+"</td>\n").c_str());
+    char buffer[100];
+    strftime(buffer,sizeof (buffer),"%Y-%m-%d %H:%M:%S",localtime(&inodo.i_mtime));
+    string fecha=buffer;
+    fprintf(archivoReporte,("<td>"+fecha+"</td>\n").c_str());
+    if (inodo.i_type=='1'){
+        fprintf(archivoReporte,("<td>Archivo</td>\n<td>"+name1+"</td>\n</tr>\n").c_str());
+    }
+else {
+        fprintf(archivoReporte, ("<td>Carpeta</td>\n<td>" + name1 + "</td>\n</tr>\n").c_str());
+        BloqueApuntadores bap, bap1, bap2;
+        BloqueCarpeta bc;
+
+        for (int i = 0; i < 15; ++i) {
+            if (inodo.i_block[i] != -1) {
+                if (i == 0) {
+                    fseek(archivoDisco, inodo.i_block[i], SEEK_SET);
+                    fread(&bc, sizeof(BloqueCarpeta), 1, archivoDisco);
+                    for (int c = 2; c < 4; ++c) {
+                        if (bc.b_content[c].b_inodo != -1) {
+                            string name = "";
+                            name += bc.b_content[c].b_name;
+                            this->lsInodo(bc.b_content[c].b_inodo, name, sb, archivoDisco, archivoReporte);
+                        }
+                    }
+                } else if (i < 12) {
+                    fseek(archivoDisco, inodo.i_block[i], SEEK_SET);
+                    fread(&bc, sizeof(BloqueCarpeta), 1, archivoDisco);
+                    for (int c = 0; c < 4; ++c) {
+                        if (bc.b_content[c].b_inodo != -1) {
+                            string name = "";
+                            name += bc.b_content[c].b_name;
+                            this->lsInodo(bc.b_content[c].b_inodo, name, sb, archivoDisco, archivoReporte);
+                        }
+                    }
+                } else if (i == 12) {
+                    fseek(archivoDisco, inodo.i_block[i], SEEK_SET);
+                    fread(&bap, sizeof(BloqueApuntadores), 1, archivoDisco);
+                    for (int j = 0; j < 16; ++j) {
+                        if (bap.b_pointers[j] != -1) {
+                            fseek(archivoDisco, bap.b_pointers[j], SEEK_SET);
+                            fread(&bc, sizeof(BloqueCarpeta), 1, archivoDisco);
+                            for (int c = 0; c < 4; ++c) {
+                                if (bc.b_content[c].b_inodo != -1) {
+                                    string name = "";
+                                    name += bc.b_content[c].b_name;
+                                    this->lsInodo(bc.b_content[c].b_inodo, name, sb, archivoDisco, archivoReporte);
+                                }
+                            }
+                        }
+                    }
+                } else if (i == 13) {
+                    fseek(archivoDisco, inodo.i_block[i], SEEK_SET);
+                    fread(&bap, sizeof(BloqueApuntadores), 1, archivoDisco);
+                    for (int j = 0; j < 16; ++j) {
+                        if (bap.b_pointers[j] != -1) {
+                            fseek(archivoDisco, bap.b_pointers[j], SEEK_SET);
+                            fread(&bap1, sizeof(BloqueApuntadores), 1, archivoDisco);
+                            for (int k = 0; k < 16; ++k) {
+                                if (bap1.b_pointers[k] != -1) {
+                                    fseek(archivoDisco, bap1.b_pointers[j], SEEK_SET);
+                                    fread(&bc, sizeof(BloqueCarpeta), 1, archivoDisco);
+                                    for (int c = 0; c < 4; ++c) {
+                                        if (bc.b_content[c].b_inodo != -1) {
+                                            string name = "";
+                                            name += bc.b_content[c].b_name;
+                                            this->lsInodo(bc.b_content[c].b_inodo, name, sb, archivoDisco,
+                                                          archivoReporte);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (i == 14) {
+                    fseek(archivoDisco, inodo.i_block[i], SEEK_SET);
+                    fread(&bap, sizeof(BloqueApuntadores), 1, archivoDisco);
+                    for (int j = 0; j < 16; ++j) {
+                        if (bap.b_pointers[j] != -1) {
+                            fseek(archivoDisco, bap.b_pointers[j], SEEK_SET);
+                            fread(&bap1, sizeof(BloqueApuntadores), 1, archivoDisco);
+                            for (int k = 0; k < 16; ++k) {
+                                if (bap1.b_pointers[k] != -1) {
+                                    fseek(archivoDisco, bap1.b_pointers[k], SEEK_SET);
+                                    fread(&bap2, sizeof(BloqueApuntadores), 1, archivoDisco);
+                                    for (int l = 0; l < 16; ++l) {
+                                        if (bap2.b_pointers[l] != -1) {
+                                            fseek(archivoDisco, bap2.b_pointers[j], SEEK_SET);
+                                            fread(&bc, sizeof(BloqueCarpeta), 1, archivoDisco);
+                                            for (int c = 0; c < 4; ++c) {
+                                                if (bc.b_content[c].b_inodo != -1) {
+                                                    string name = "";
+                                                    name += bc.b_content[c].b_name;
+                                                    this->lsInodo(bc.b_content[c].b_inodo, name, sb, archivoDisco,
+                                                                  archivoReporte);
+                                                    this->lsInodo(bc.b_content[c].b_inodo, name1, sb, archivoDisco,
+                                                                  archivoReporte);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+string Reporte::getUsuario(int id,SuperBloque &sb, FILE *archivoDisco) {
+    string content=this->getContentF(sb.s_inode_start+ sizeof(TablaInodo),archivoDisco);
+    vector<string> split;
+    string usuario;
+    stringstream ss(content);
+
+    while (getline(ss,usuario,'\n')){
+        if (usuario != ""){
+            vector<string> datos=this->split(usuario,',');
+            if (datos[1]=="U" &&  datos[0]== to_string(id)){
+                return datos[3];
+            }
+        }
+    }
+    return "NONE";
+}
+
+string Reporte::getGrupo(int id,SuperBloque &sb, FILE *archivoDisco) {
+    string content=this->getContentF(sb.s_inode_start+ sizeof(TablaInodo),archivoDisco);
+    vector<string> split;
+    string grupo;
+    stringstream ss(content);
+
+    while (getline(ss,grupo,'\n')){
+        if (grupo != ""){
+            vector<string> datos=this->split(grupo,',');
+            if (datos[1]=="G" &&  datos[0]== to_string(id)){
+                return datos[2];
+            }
+        }
+    }
+
+    return "NONE";
+}
+
+string Reporte::getPermiso(int permiso) {
+    string perm= to_string(permiso);
+    string dot="";
+    for (int i = 0; i < perm.length(); ++i) {
+        dot+="-";
+        if ((perm[i]=='4') || (perm[i]=='5') || (perm[i]=='6') || (perm[i]=='7')){
+            dot+="r";
+        }
+        if ((perm[i]=='2') || (perm[i]=='3') || (perm[i]=='6') || (perm[i]=='7')){
+            dot+="w";
+        }if ((perm[i]=='1') || (perm[i]=='3') || (perm[i]=='5') || (perm[i]=='7')){
+            dot+="x";
+        }
+        dot+=" ";
+    }
+    return dot;
+}
+
 //Generar Reporte File
 void Reporte::reporteFile() {
     if(verificarRuta(this->fichero_r,this->archivo_r,"[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ]+") && verificarRuta(this->fichero_p,this->archivo_p,"[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ]+")){
@@ -1795,4 +2090,124 @@ int Reporte::buscarEnCarpeta(TablaInodo &ti, int inicioInodo, FILE *archivo, str
     fwrite(&ti, sizeof(TablaInodo), 1, archivo);
 
     return ubicacion;
+}
+
+void Reporte::reportJournaling() {
+    if(this->fichero_p != "" && this->archivo_p != "" && verificarRuta(this->fichero_p,this->archivo_p,"[a-zA-Z0-9_ñÑáéíóúÁÉÍÓÚ]+")){
+        NodoMount * nodo = this->listaMount->buscar(this->id);
+
+        if (nodo != NULL) {
+            FILE *archivoDisco = fopen((nodo->fichero + "/" + nodo->nombre_disco).c_str(), "rb");
+
+            if (archivoDisco != NULL) {
+                //Creacion de los ficheros y dando permisos
+                string comando = "sudo -S mkdir -p \'" + this->fichero_p + "\'";
+                system(comando.c_str());
+                comando = "sudo -S chmod -R 777  \'" + this->fichero_p + "\'";
+                system(comando.c_str());
+
+                MBR mbr;
+                fread(&mbr, sizeof(MBR), 1, archivoDisco);
+
+                SuperBloque sb;
+                bool verificar = false;
+                for (int i = 0; i < 4; i++) {
+                    if (strncmp(mbr.mbr_partition_[i].part_name, nodo->nombre_particion.c_str(), 16) == 0 &&
+                        nodo->part_type == mbr.mbr_partition_[i].part_type) {
+                        if (mbr.mbr_partition_[i].part_status == '2') {
+                            fseek(archivoDisco, mbr.mbr_partition_[i].part_start, SEEK_SET);
+                            fread(&sb, sizeof(SuperBloque), 1, archivoDisco);
+                            verificar = true;
+                            break;
+                        } else if (mbr.mbr_partition_[i].part_status == '1') {
+                            cout << "No se ha aplicado el comando MKFS a la Particion" << endl << endl;
+                            goto t0;
+                        } else if (mbr.mbr_partition_[i].part_status == '0') {
+                            cout << "No se encontro la Particion en el Disco..." << endl;
+                            cout << "Desmontando la Praticion" << endl << endl;
+                            this->listaMount->eliminar(nodo->idCompleto);
+                            goto t0;
+                        }
+                    } else if (mbr.mbr_partition_[i].part_type == 'E' &&
+                               nodo->part_type == 'L') {
+                        EBR ebr;
+                        fseek(archivoDisco, nodo->part_start, SEEK_SET);
+                        fread(&ebr, sizeof(EBR), 1, archivoDisco);
+
+                        if (strncmp(ebr.part_name, nodo->nombre_particion.c_str(), 16) == 0) {
+                            if (ebr.part_status == '2') {
+                                fseek(archivoDisco, ebr.part_start + sizeof(EBR), SEEK_SET);
+                                fread(&sb, sizeof(SuperBloque), 1, archivoDisco);
+                                verificar = true;
+                                break;
+                            } else if (ebr.part_status == '1') {
+                                cout << "No se ha aplicado el comando MKFS a la Particion" << endl << endl;
+                                goto t0;
+                            } else if (ebr.part_status == '0') {
+                                cout << "No se encontro la Particion en el Disco..." << endl;
+                                cout << "Desmontando la Praticion" << endl << endl;
+                                this->listaMount->eliminar(nodo->idCompleto);
+                                goto t0;
+                            }
+                        }
+                    }
+                }
+
+                if(verificar){
+                    if(sb.s_filesystem_type == 3) {
+                        FILE *archivoReporte = fopen((this->fichero_p + "/reporteJournaling.dot").c_str(), "w+");
+                        fseek(archivoDisco, sb.s_bm_block_start, SEEK_SET);
+
+                        Journaling journal;
+                        fseek(archivoDisco, nodo->part_start + sizeof(SuperBloque), SEEK_SET);
+                        fread(&journal, sizeof(Journaling), 1, archivoDisco);
+
+                        fprintf(archivoReporte, "digraph G {\n");
+                        fprintf(archivoReporte, "node[shape=none]\n");
+                        fprintf(archivoReporte,"start[label=<<table>\n");
+
+                        fprintf(archivoReporte,"<tr>\n");
+                        fprintf(archivoReporte,"<td>tipo</td>\n");
+                        fprintf(archivoReporte,"<td>operacion</td>\n");
+                        fprintf(archivoReporte,"<td>path</td>\n");
+                        fprintf(archivoReporte,"<td>fecha</td>\n");
+                        fprintf(archivoReporte,"</tr>\n");
+
+                        fprintf(archivoReporte,"<tr>\n");
+                        fprintf(archivoReporte,("<td>"+ to_string(journal.tipo)+"</td>\n").c_str());
+                        string cadena = "";
+                        cadena += journal.operacion;
+                        fprintf(archivoReporte,("<td>"+ cadena +"</td>\n").c_str());
+                        cadena = "";
+                        cadena += journal.path;
+                        fprintf(archivoReporte,("<td>"+ cadena +"</td>\n").c_str());
+                        tm *fecha = localtime(&journal.fecha);
+                        char buffer[128];
+                        strftime(buffer, sizeof(buffer), "%m-%d-%Y %X", fecha);
+                        fprintf(archivoReporte,("<td>"+ ((string) buffer) +"</td>\n").c_str());
+                        fprintf(archivoReporte,"</tr>\n");
+
+                        fprintf(archivoReporte,"</table>>]");
+                        fprintf(archivoReporte,"}");
+
+                        fclose(archivoReporte);
+                        comando = "sudo -S dot -T" + this->obtenerExtension(this->archivo_p) + " " + this->fichero_p +
+                                  "/reporteJournaling.dot -o \"" + this->fichero_p + "/" + this->archivo_p + "\"";
+                        system(comando.c_str());
+                        cout << "Reporte de Journaling generado con Exito" << endl << endl;
+                    } else { cout << "No es un sistema de archivo EXT3" << endl << endl; }
+                } else{
+                    cout << "La Particion no exite dentro del disco..." << endl << endl;
+                    cout << "Desmontando la particion" << endl << endl;
+                    this->listaMount->eliminar(nodo->id);
+                }
+                t0:
+                fclose(archivoDisco);
+            } else {
+                cout << "No fue posible encontrar el Disco... " << endl;
+                cout << "Desmontando particion" << endl << endl;
+                this->listaMount->eliminar(this->id);
+            }
+        }
+    }
 }

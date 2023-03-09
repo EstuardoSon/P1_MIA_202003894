@@ -644,7 +644,7 @@ void GestorArchivos::buscarficheroCat(vector<string> &ficheros, string nombreArc
                 } else { cout << "No se encontro el fichero " << fichero << endl << endl; }
             }
             else { cout << "El inodo no corresponde a una carpeta" << endl << endl; }
-        } else{ cout << "El usuario no tiene permisos de Lectura" << endl << endl; }
+        } else{ cout << "El usuario no tiene permisos de Lectura en: " << ficheros[0] << endl << endl; }
     }
     else{
         if(lectura){
@@ -657,12 +657,17 @@ void GestorArchivos::buscarficheroCat(vector<string> &ficheros, string nombreArc
                     fread(&iArchivo, sizeof(TablaInodo), 1, archivo);
 
                     if(iArchivo.i_type == '1') {
-                        cout << this->getContentF(ubicacion, archivo) << endl << endl;
+                        escritura=false;
+                        lectura=false;
+                        this->verificarPermisos(iArchivo, escritura, lectura);
+                        if(lectura) {
+                            cout << this->getContentF(ubicacion, archivo) << endl << endl;
+                        } else{ cout << "El usuario no tiene permisos de Lectura" << endl << endl; }
                     }else { cout << "El inodo no corresponde a un archivo" << endl << endl; }
                 } else { cout << "El archivo no existe" << endl << endl; }
             }
             else { cout << "El inodo no corresponde a una carpeta" << endl << endl; }
-        } else{ cout << "El usuario no tiene permisos de Lectura" << endl << endl; }
+        } else{ cout << "El usuario no tiene permisos de Lectura en el fichero padre" << endl << endl; }
     }
 }
 
@@ -3145,11 +3150,25 @@ void GestorArchivos::find(string path, string name) {
                         cout << "El nombre no correponde a una carpeta" << endl << endl;
                     }
                     else if (ti.i_type == '0') {
+
+                        string sRegex = "";
+                        for(int i = 0; i < name.size(); i++){
+                            if(name[i] != '*' && name[i] != '?' && name[i] != '.'){
+                                sRegex += name[i];
+                            }else if(name[i] == '*'){
+                                sRegex += "(.)*";
+                            }else if(name[i] == '.'){
+                                sRegex += "\\.";
+                            }else if(name[i] == '?'){
+                                sRegex += "(.)";
+                            }
+                        }
+
                         if(ficheros.size() > 0){
-                            this->buscarEnCarpetaFind(ubicacion,sb,inicioSB,archivo,"/"+ficheros[0],0);
+                            this->buscarEnCarpetaFind(ubicacion,sb,inicioSB,archivo,"/"+ficheros[0],0, sRegex);
                         }
                         else{
-                            this->buscarEnCarpetaFind(ubicacion,sb,inicioSB,archivo,"/",0);
+                            this->buscarEnCarpetaFind(ubicacion,sb,inicioSB,archivo,"/",0,sRegex);
                         }
                     }
                 }
@@ -3164,7 +3183,7 @@ void GestorArchivos::find(string path, string name) {
     }
 }
 
-void GestorArchivos::buscarEnCarpetaFind(int inicioInodo, SuperBloque &sb, int inicioSB, FILE *archivo, string nombre, int identacion) {
+void GestorArchivos::buscarEnCarpetaFind(int inicioInodo, SuperBloque &sb, int inicioSB, FILE *archivo, string nombre, int identacion, string sRegex) {
     TablaInodo ti;
     BloqueApuntadores bap, bap1, bap2;
 
@@ -3175,10 +3194,11 @@ void GestorArchivos::buscarEnCarpetaFind(int inicioInodo, SuperBloque &sb, int i
 
     bool escritura, lectura;
     this->verificarPermisos(ti, escritura, lectura);
-    if (ti.i_type == '1' && lectura) {
+    regex reg (sRegex);
+    if (ti.i_type == '1' && lectura && regex_match(nombre, reg)) {
         cout << sIdent << "*" << nombre << endl;
     }
-    else if (ti.i_type == '0') {
+    else if (ti.i_type == '0' && lectura) {
         cout << sIdent << "-" << nombre << endl;
         BloqueApuntadores bap, bap1, bap2;
         BloqueCarpeta bc;
@@ -3194,7 +3214,7 @@ void GestorArchivos::buscarEnCarpetaFind(int inicioInodo, SuperBloque &sb, int i
                         if (bc.b_content[c].b_inodo != -1) {
                             string sigNombre = "";
                             sigNombre += bc.b_content[c].b_name;
-                            this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre, identacion+1);
+                            this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre, identacion+1, sRegex);
                         }
                     }
                 } else if (i < 12) {
@@ -3205,7 +3225,7 @@ void GestorArchivos::buscarEnCarpetaFind(int inicioInodo, SuperBloque &sb, int i
                         if (bc.b_content[c].b_inodo != -1) {
                             string sigNombre = "";
                             sigNombre += bc.b_content[c].b_name;
-                            this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre,identacion+1);
+                            this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre,identacion+1, sRegex);
                         }
                     }
                 } else if (i == 12) {
@@ -3221,7 +3241,7 @@ void GestorArchivos::buscarEnCarpetaFind(int inicioInodo, SuperBloque &sb, int i
                                 if (bc.b_content[c].b_inodo != -1) {
                                     string sigNombre = "";
                                     sigNombre += bc.b_content[c].b_name;
-                                    this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre,identacion+1);
+                                    this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre,identacion+1, sRegex);
                                 }
                             }
                         }
@@ -3244,7 +3264,7 @@ void GestorArchivos::buscarEnCarpetaFind(int inicioInodo, SuperBloque &sb, int i
                                         if (bc.b_content[c].b_inodo != -1) {
                                             string sigNombre = "";
                                             sigNombre += bc.b_content[c].b_name;
-                                            this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre,identacion+1);
+                                            this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre,identacion+1,sRegex);
                                         }
                                     }
                                 }
@@ -3274,7 +3294,7 @@ void GestorArchivos::buscarEnCarpetaFind(int inicioInodo, SuperBloque &sb, int i
                                                 if (bc.b_content[c].b_inodo != -1) {
                                                     string sigNombre = "";
                                                     sigNombre += bc.b_content[c].b_name;
-                                                    this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre,identacion+1);
+                                                    this->buscarEnCarpetaFind(bc.b_content[c].b_inodo, sb, inicioSB, archivo, sigNombre,identacion+1,sRegex);
                                                 }
                                             }
                                         }
@@ -5741,7 +5761,7 @@ void GestorArchivos::writeInFile(string texto, SuperBloque &sb, int inicioSB, in
 
 //Verificar los permisos de escritura y lectura de un usuario en un inodo
 void GestorArchivos::verificarPermisos(TablaInodo & inodo, bool &escritura, bool &lectura) {
-    if(this->usuario->nombreG == "root"){
+    if(this->usuario->nombreG == "root" && this->usuario->nombreU == "root"){
         escritura = true;
         lectura = true;
         return;
@@ -5760,11 +5780,11 @@ void GestorArchivos::verificarPermisos(TablaInodo & inodo, bool &escritura, bool
     }
     else if(this->usuario->idG == inodo.i_gid){
         if(grupo > 3){ lectura = true; }
-        if(grupo == 2 || grupo == 3 || grupo == 6 || grupo == 7) { grupo = true; }
+        if(grupo == 2 || grupo == 3 || grupo == 6 || grupo == 7) { escritura = true; }
     }
     else{
         if(otros > 3){ lectura = true; }
-        if(otros == 2 || otros == 3 || otros == 6 || otros == 7) { otros = true; }
+        if(otros == 2 || otros == 3 || otros == 6 || otros == 7) { escritura = true; }
     }
 }
 

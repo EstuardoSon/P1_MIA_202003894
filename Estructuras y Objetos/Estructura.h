@@ -84,14 +84,12 @@ struct BloqueApuntadores{
 };
 
 struct Journaling{
-    char tipo_operacion[10];
-    char tipo;
-    char path[100];
-    char contenido[100];
+    int tipo;
+    char operacion[20];
+    char path[200];
     time_t fecha;
-    int size;
-    int sig;
     int start;
+    int sig;
 };
 
 #endif //P1_MIA_202003894_ESTRUCTURA_H

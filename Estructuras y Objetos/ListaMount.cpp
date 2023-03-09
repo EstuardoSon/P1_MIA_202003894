@@ -223,7 +223,7 @@ NodoMount * ListaMount::eliminar(string idCompleto) {
                             fread(&sb, sizeof(SuperBloque), 1, archivo);
                             sb.s_umtime = time(nullptr);
                             fseek(archivo,ebr.part_start + sizeof(EBR), SEEK_SET);
-                            fread(&sb, sizeof(SuperBloque), 1, archivo);
+                            fwrite(&sb, sizeof(SuperBloque), 1, archivo);
                         }
 
                     }
@@ -237,7 +237,7 @@ NodoMount * ListaMount::eliminar(string idCompleto) {
                                 fread(&sb, sizeof(SuperBloque), 1, archivo);
                                 sb.s_mtime = time(nullptr);
                                 fseek(archivo,ebr.part_start + sizeof(EBR), SEEK_SET);
-                                fread(&sb, sizeof(SuperBloque), 1, archivo);
+                                fwrite(&sb, sizeof(SuperBloque), 1, archivo);
                             }
                         }
                     }
@@ -361,7 +361,7 @@ void ListaMount::agregar(NodoMount * nuevo) {
                                     sb.s_mtime = time(nullptr);
                                     sb.s_mnt_count++;
                                     fseek(archivo,ebr.part_start + sizeof(EBR), SEEK_SET);
-                                    fread(&sb, sizeof(SuperBloque), 1, archivo);
+                                    fwrite(&sb, sizeof(SuperBloque), 1, archivo);
                                 }
 
                             }
@@ -376,7 +376,7 @@ void ListaMount::agregar(NodoMount * nuevo) {
                                         sb.s_mtime = time(nullptr);
                                         sb.s_mnt_count++;
                                         fseek(archivo,ebr.part_start + sizeof(EBR), SEEK_SET);
-                                        fread(&sb, sizeof(SuperBloque), 1, archivo);
+                                        fwrite(&sb, sizeof(SuperBloque), 1, archivo);
                                     }
                                 }
                             }
@@ -534,9 +534,9 @@ void ListaMount::ext(int type, int sistemaArchivo, NodoMount * nodo) {
                 if (sistemaArchivo == 2) {
                     journal.sig = -1;
                     journal.tipo = '0';
-                    journal.size = 0;
                     journal.fecha = time(nullptr);
-                    strcpy(journal.tipo_operacion, "mkfs");
+                    strcpy(journal.operacion, "mkfs");
+                    strcpy(journal.path, "");
                     journal.start = mbr.mbr_partition_[p].part_start + sizeof(SuperBloque);
                 }
 
@@ -682,9 +682,9 @@ void ListaMount::ext(int type, int sistemaArchivo, NodoMount * nodo) {
                 if (sistemaArchivo == 2) {
                     journal.sig = -1;
                     journal.tipo = '0';
-                    journal.size = 0;
                     journal.fecha = time(nullptr);
-                    strcpy(journal.tipo_operacion, "mkfs");
+                    strcpy(journal.operacion, "mkfs");
+                    strcpy(journal.path, "");
                     journal.start = (ebr.part_s + (sizeof(EBR))) + sizeof(SuperBloque);
                 }
 

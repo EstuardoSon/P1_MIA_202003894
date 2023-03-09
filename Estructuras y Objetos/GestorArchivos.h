@@ -49,7 +49,7 @@ public:
     void buscarEnCarpetaChmod(int ubicacion, int ugo, FILE *archivo);
     int buscarEnCarpeta(TablaInodo &ti, int inicioInodo, FILE *archivo, string nombre);
     bool buscarEspacio(TablaInodo &ti, int incioInodo, SuperBloque &sb, int inicioSB, FILE * archivo, int inicioMove, string nombreMove);
-    void buscarEnCarpetaFind(int inicioInodo, SuperBloque &sb, int inicioSB, FILE *archivo, string nombre, int identacion);
+    void buscarEnCarpetaFind(int inicioInodo, SuperBloque &sb, int inicioSB, FILE *archivo, string nombre, int identacion, string regex);
     void buscarEnCarpetaChown(int inicioInodo, SuperBloque &sb, int inicioSB, FILE *archivo, int u, int g, bool r);
 
     int buscarEspacioArchivo(TablaInodo &ti, int inicioInodo, FILE *archivo, string nombre, SuperBloque &sb, int inicioSB, string textoArchivo);
